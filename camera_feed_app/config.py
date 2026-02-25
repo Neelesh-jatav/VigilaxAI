@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
     HOST = os.getenv("FLASK_HOST", "0.0.0.0")
-    PORT = int(os.getenv("FLASK_PORT", "5000"))
+    PORT = int(os.getenv("FLASK_PORT", os.getenv("PORT", "5000")))
     DEBUG = os.getenv("FLASK_DEBUG", "false").lower() == "true"
 
     CAMERA_SCAN_MAX_INDEX = int(os.getenv("CAMERA_SCAN_MAX_INDEX", "1"))
