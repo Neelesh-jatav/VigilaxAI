@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VigilaxAI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+</head>
+<body>
+    <main class="container">
+        <h1>Drone Detection System</h1>
+
+        <div class="app-layout">
+            <section class="panel feed feed-panel">
+                <img id="videoFeed" src="{{ url_for('camera.video_feed') }}" alt="Live camera feed" />
+            </section>
+
+            <section class="panel controls controls-panel">
+                <div class="control-group">
+                    <div class="camera-header">
+                        <label>Available Cameras</label>
+                        <button id="refreshCamerasBtn" title="Refresh camera list">🔄 Refresh</button>
+                    </div>
+                    <div id="cameraButtons" class="camera-buttons"></div>
+                </div>
+
+                <div class="status-row">
+                    <p><strong>Selected:</strong> <span id="selectedCamera">None</span></p>
+                    <p>
+                        <strong>Status:</strong>
+                        <span id="statusDot" class="dot dot-off"></span>
+                        <span id="statusText">Stopped</span>
+                        <span> | </span>
+                        <strong>FPS:</strong>
+                        <span id="fpsValue">0.00</span>
+                        <span> | </span>
+                        <strong>Faces:</strong>
+                        <span id="faceCount">0</span>
+                        <span>(<span id="faceStatus">OFF</span>)</span>
+                        <span> | </span>
+                        <strong>Drones:</strong>
+                        <span id="droneCount">0</span>
+                        <span>(<span id="droneStatus">OFF</span>)</span>
+                        <span> | </span>
+                        <strong>Audio Drone:</strong>
+                        <span id="audioDroneStatus">N/A</span>
+                        <span> | </span>
+                        <strong>Weapons:</strong>
+                        <span id="weaponCount">0</span>
+                        <span>(<span id="weaponStatus">OFF</span>)</span>
+                        <span> | </span>
+                        <strong>Knives:</strong>
+                        <span id="knifeCount">0</span>
+                        <span> | </span>
+                        <strong>Guns:</strong>
+                        <span id="gunCount">0</span>
+                    </p>
+                    <p id="aiWarning" class="warning-text" style="display: none;">
+                        ⚠ Running multiple AI models may reduce FPS
+                    </p>
+                </div>
+
+                <div class="button-row">
+                    <button id="startBtn">Start</button>
+                    <button id="stopBtn" class="danger">Stop</button>
+                    <button id="captureBtn">Capture</button>
+                    <button id="recordBtn">Start Recording</button>
+                    <button id="archivesBtn">Archives</button>
+                    <button id="mapBtn">Map</button>
+                    <button id="voiceBtn">Enable Voice System</button>
+                    <button id="toggleFaceBtn">Enable Face Detection</button>
+                    <button id="toggleDroneBtn">Enable Drone Detection</button>
+                    <button id="toggleKnifeBtn">Enable Knife Detection</button>
+                    <button id="toggleGunBtn">Enable Gun Detection</button>
+                </div>
+
+                <p id="message" class="message"></p>
+                <div class="voice-help-panel">
+                    <p><strong>Voice Commands:</strong></p>
+                    <p class="voice-help-list">
+                        start, stop, capture, start recording, stop recording, archives, map, close map, show route, refresh cameras, analyze audio, select camera &lt;number&gt;, enable/disable face, enable/disable drone, enable/disable knife, enable/disable gun, route from &lt;start&gt; to &lt;destination&gt;, voice help
+                    </p>
+                </div>
+            </section>
+
+            <section class="panel audio-panel audio-panel-panel">
+                <p><strong>🎙️ Drone Sound Detection</strong></p>
+                
+                <!-- Live Detection Section -->
+                <div class="audio-panel-row">
+                    <button id="liveDetectionBtn" type="button" class="primary-btn">🔴 Start Live Detection</button>
+                    <button id="stopLiveDetectionBtn" type="button" class="primary-btn" style="display: none;">⏹️ Stop Live Detection</button>
+                </div>
+                
+                <!-- Auto-save Toggle -->
+                <div class="audio-panel-row" style="margin-top: 8px;">
+                    <label style="display: flex; align-items: center; cursor: pointer; font-size: 13px;">
+                        <input type="checkbox" id="autoSaveCheckbox" style="margin-right: 8px;">
+                        <span>💾 Auto-save detections</span>
+                    </label>
+                </div>
+                
+                <!-- Spectrum Visualization -->
+                <canvas id="spectrumCanvas" style="display: none; width: 100%; height: 150px; border: 1px solid #333; border-radius: 4px; margin: 8px 0; background: #0a0a0a;"></canvas>
+                
+                <!-- Live Detection Status -->
+                <div id="liveStatusContainer" style="display: none; margin: 8px 0;">
+                    <p style="margin: 4px 0; font-size: 12px; color: #999;">
+                        <span>Frequency: </span><span id="frequencyDisplay">-</span> Hz
+                        <span style="margin-left: 15px;">Intensity: </span><span id="intensityDisplay">-</span> dB
+                    </p>
+                    
+                    <!-- Detection Indicator -->
+                    <div id="detectionIndicator" style="margin: 10px 0; padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 16px; transition: all 0.3s ease;">
+                        🔍 Listening...
+                    </div>
+                    
+                    <!-- Detection Log -->
+                    <div id="detectionLogPanel" style="margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid #333; border-radius: 6px; max-height: 200px; overflow-y: auto;">
+                        <p style="margin: 0 0 8px 0; font-size: 11px; color: #999; font-weight: bold;">📋 DETECTION LOG</p>
+                        <div id="detectionLog" style="font-size: 11px; font-family: 'Courier New', monospace; color: #00ff00;"></div>
+                    </div>
+                </div>
+                
+                <!-- File Upload Section -->
+                <hr style="margin: 12px 0; border: none; border-top: 1px solid #333;">
+                <p style="font-size: 12px; color: #999; margin: 8px 0;">Or upload an audio file:</p>
+                <div class="audio-panel-row">
+                    <input id="audioFileInput" type="file" accept=".wav,.mp3,.ogg,.m4a,.flac,audio/*" />
+                    <button id="analyzeAudioBtn" type="button">📁 Analyze File</button>
+                    <button id="audioArchivesBtn" type="button" class="primary-btn">📂 View Archives</button>
+                </div>
+                <p id="audioResult" class="message" style="font-size: 12px;">Upload a file to detect drone sound signatures.</p>
+            </section>
+        </div>
+
+        <section id="mapPanel" class="panel" style="display: none;">
+            <h2>Route Map</h2>
+            <div class="map-controls">
+                <input id="startLocation" type="text" placeholder="Start location" />
+                <input id="destinationLocation" type="text" placeholder="Destination" />
+                <button id="showRouteBtn">Show Route</button>
+                <button id="closeMapBtn" class="danger">Close Map</button>
+            </div>
+            <p id="routeDistance" class="message">Enter start and destination to view route distance.</p>
+            <div id="routeMap"></div>
+        </section>
+
+        <section id="audioArchivesPanel" class="panel" style="display: none;">
+            <h2>🎙️ Drone Sound Detection Archives</h2>
+            <div class="map-controls">
+                <button id="refreshArchivesBtn">🔄 Refresh</button>
+                <button id="closeAudioArchivesBtn" class="danger">Close Archives</button>
+            </div>
+            <p id="archivesMessage" class="message">Loading detection archives...</p>
+            <div id="audioArchivesList" style="margin-top: 20px;"></div>
+        </section>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        const cameraButtonsContainer = document.getElementById('cameraButtons');
+        const selectedCamera = document.getElementById('selectedCamera');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const fpsValue = document.getElementById('fpsValue');
+        const faceCount = document.getElementById('faceCount');
+        const faceStatus = document.getElementById('faceStatus');
+        const droneCount = document.getElementById('droneCount');
+        const droneStatus = document.getElementById('droneStatus');
+        const audioDroneStatus = document.getElementById('audioDroneStatus');
+        const weaponCount = document.getElementById('weaponCount');
+        const weaponStatus = document.getElementById('weaponStatus');
+        const knifeCount = document.getElementById('knifeCount');
+        const gunCount = document.getElementById('gunCount');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const aiWarning = document.getElementById('aiWarning');
+        const messageBox = document.getElementById('message');
+        const recordBtn = document.getElementById('recordBtn');
+        const archivesBtn = document.getElementById('archivesBtn');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const toggleFaceBtn = document.getElementById('toggleFaceBtn');
+        const toggleDroneBtn = document.getElementById('toggleDroneBtn');
+        const toggleKnifeBtn = document.getElementById('toggleKnifeBtn');
+        const toggleGunBtn = document.getElementById('toggleGunBtn');
+        const refreshCamerasBtn = document.getElementById('refreshCamerasBtn');
+        const mapBtn = document.getElementById('mapBtn');
+        const mapPanel = document.getElementById('mapPanel');
+        const showRouteBtn = document.getElementById('showRouteBtn');
+        const closeMapBtn = document.getElementById('closeMapBtn');
+        const startLocationInput = document.getElementById('startLocation');
+        const destinationLocationInput = document.getElementById('destinationLocation');
+        const routeDistance = document.getElementById('routeDistance');
+        const audioFileInput = document.getElementById('audioFileInput');
+        const analyzeAudioBtn = document.getElementById('analyzeAudioBtn');
+        const audioResult = document.getElementById('audioResult');
+        const audioArchivesBtn = document.getElementById('audioArchivesBtn');
+        const audioArchivesPanel = document.getElementById('audioArchivesPanel');
+        const closeAudioArchivesBtn = document.getElementById('closeAudioArchivesBtn');
+        const refreshArchivesBtn = document.getElementById('refreshArchivesBtn');
+        const audioArchivesList = document.getElementById('audioArchivesList');
+        const archivesMessage = document.getElementById('archivesMessage');
+        const autoSaveCheckbox = document.getElementById('autoSaveCheckbox');
+
+        let currentCameraIndex = null;
+
+        let isRecording = false;
+        let faceEnabled = false;
+        let droneEnabled = false;
+        let knifeEnabled = false;
+        let gunEnabled = false;
+        let gunAvailable = false;
+        let weaponEnabled = false;
+        let routeMap = null;
+        let tileLayer = null;
+        let routePolyline = null;
+        let startMarker = null;
+        let destinationMarker = null;
+        let voiceRecognition = null;
+        let voiceEnabled = false;
+
+        function setMessage(text, isError = false) {
+            messageBox.textContent = text;
+            messageBox.className = isError ? 'message error' : 'message';
+        }
+
+        function setAudioResult(text, isError = false) {
+            audioResult.textContent = text;
+            audioResult.className = isError ? 'message error' : 'message';
+        }
+
+        function updateStatus(state) {
+            const running = state?.is_running;
+            statusText.textContent = running ? 'Running' : 'Stopped';
+            statusDot.className = running ? 'dot dot-on' : 'dot dot-off';
+            isRecording = !!state?.is_recording;
+            recordBtn.textContent = isRecording ? 'Stop Recording' : 'Start Recording';
+            selectedCamera.textContent = state?.active_camera_name || selectedCamera.textContent || 'None';
+            
+            // Update AI detection states
+            if (typeof state?.face_enabled === 'boolean') {
+                faceEnabled = state.face_enabled;
+                faceStatus.textContent = faceEnabled ? 'ON' : 'OFF';
+                toggleFaceBtn.textContent = faceEnabled ? 'Disable Face' : 'Enable Face';
+            }
+            if (typeof state?.drone_enabled === 'boolean') {
+                droneEnabled = state.drone_enabled;
+                droneStatus.textContent = droneEnabled ? 'ON' : 'OFF';
+                toggleDroneBtn.textContent = droneEnabled ? 'Disable Drone' : 'Enable Drone';
+            }
+            if (typeof state?.knife_enabled === 'boolean') {
+                knifeEnabled = state.knife_enabled;
+                toggleKnifeBtn.textContent = knifeEnabled ? 'Disable Knife' : 'Enable Knife';
+            }
+            if (typeof state?.gun_enabled === 'boolean') {
+                gunEnabled = state.gun_enabled;
+                toggleGunBtn.textContent = gunEnabled ? 'Disable Gun' : 'Enable Gun';
+            }
+            if (typeof state?.gun_available === 'boolean') {
+                gunAvailable = state.gun_available;
+                toggleGunBtn.disabled = !gunAvailable;
+                if (!gunAvailable) {
+                    toggleGunBtn.textContent = 'Gun Unavailable';
+                }
+            }
+            if (typeof state?.weapon_enabled === 'boolean') {
+                weaponEnabled = state.weapon_enabled;
+                weaponStatus.textContent = weaponEnabled ? 'ON' : 'OFF';
+            }
+            if (typeof state?.faces_detected === 'number') {
+                faceCount.textContent = String(state.faces_detected);
+            }
+            if (typeof state?.drones_detected === 'number') {
+                droneCount.textContent = String(state.drones_detected);
+            }
+            if (typeof state?.audio_drone_available === 'boolean') {
+                audioDroneStatus.textContent = state.audio_drone_available ? 'Ready' : 'Unavailable';
+            }
+            if (state?.audio_drone_last_result && typeof state.audio_drone_last_result.detected === 'boolean') {
+                const result = state.audio_drone_last_result;
+                const confidencePct = Number(result.confidence || 0) * 100;
+                setAudioResult(`${result.prediction} (${confidencePct.toFixed(1)}% confidence)`);
+                audioDroneStatus.textContent = result.detected ? 'Detected' : 'Clear';
+            }
+            if (typeof state?.knives_detected === 'number') {
+                knifeCount.textContent = String(state.knives_detected);
+            }
+            if (typeof state?.guns_detected === 'number') {
+                gunCount.textContent = String(state.guns_detected);
+            }
+            if (typeof state?.total_weapons === 'number') {
+                weaponCount.textContent = String(state.total_weapons);
+            }
+            
+            // Show warning if multiple AI models are active
+            if (state?.multi_ai_active === true) {
+                aiWarning.style.display = 'block';
+            } else {
+                aiWarning.style.display = 'none';
+            }
+            
+            if (!running) {
+                fpsValue.textContent = '0.00';
+            }
+        }
+
+        async function api(path, method = 'GET', body) {
+            const response = await fetch(path, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            const data = await response.json();
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Request failed');
+            }
+            return data;
+        }
+
+        async function loadCameras(autoSelect = true) {
+            try {
+                setMessage('Refreshing camera list...');
+                const data = await api('/api/cameras');
+                cameraButtonsContainer.innerHTML = '';
+                
+                if (data.cameras.length === 0) {
+                    cameraButtonsContainer.innerHTML = '<p style="color: #888;">No cameras found</p>';
+                    selectedCamera.textContent = 'No camera found';
+                    setMessage('No camera devices detected', true);
+                    return;
+                }
+                
+                data.cameras.forEach((camera) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'camera-btn';
+                    btn.dataset.index = camera.index;
+                    btn.textContent = `${camera.name}`;
+                    btn.title = `Camera Index: ${camera.index}`;
+                    btn.style.cssText = 'padding: 8px 16px; cursor: pointer; border: 2px solid #2a332b; background: #151b16; color: #e8ece5; border-radius: 6px; transition: all 0.2s;';
+                    
+                    btn.addEventListener('click', async () => {
+                        // Prevent double-clicks
+                        if (btn.disabled) return;
+                        
+                        const clickedIndex = Number(camera.index);
+                        
+                        // Don't re-select if already selected
+                        if (clickedIndex === currentCameraIndex) {
+                            setMessage(`Camera ${camera.name} already selected`);
+                            return;
+                        }
+                        
+                        // Disable all buttons during switch
+                        document.querySelectorAll('.camera-btn').forEach(b => {
+                            b.disabled = true;
+                        });
+                        
+                        setMessage(`Switching to ${camera.name}...`);
+                        
+                        try {
+                            // Remove active class from all buttons
+                            document.querySelectorAll('.camera-btn').forEach(b => {
+                                b.style.border = '2px solid #2a332b';
+                                b.style.background = '#151b16';
+                                b.style.color = '#e8ece5';
+                                b.style.fontWeight = 'normal';
+                            });
+                            
+                            // Highlight selected button
+                            btn.style.border = '2px solid #8fbf3a';
+                            btn.style.background = 'rgba(143, 191, 58, 0.18)';
+                            btn.style.color = '#e8ece5';
+                            btn.style.fontWeight = 'bold';
+                            
+                            await selectCamera(clickedIndex);
+                            currentCameraIndex = clickedIndex;
+                            setMessage(`Switched to ${camera.name}`);
+                        } catch (error) {
+                            setMessage(`Failed to switch: ${error.message}`, true);
+                        } finally {
+                            // Re-enable all buttons
+                            document.querySelectorAll('.camera-btn').forEach(b => {
+                                b.disabled = false;
+                            });
+                        }
+                    });
+                    
+                    cameraButtonsContainer.appendChild(btn);
+                });
+
+                setMessage(`Found ${data.cameras.length} camera(s)`);
+                
+                if (autoSelect && data.cameras.length > 0) {
+                    const first = data.cameras[0];
+                    currentCameraIndex = Number(first.index);
+                    const firstBtn = cameraButtonsContainer.querySelector(`[data-index="${first.index}"]`);
+                    if (firstBtn) {
+                        firstBtn.style.border = '2px solid #8fbf3a';
+                        firstBtn.style.background = 'rgba(143, 191, 58, 0.18)';
+                        firstBtn.style.color = '#e8ece5';
+                        firstBtn.style.fontWeight = 'bold';
+                    }
+                    await selectCamera(Number(first.index));
+                }
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        }
+
+        function initRouteMapIfNeeded() {
+            if (routeMap) {
+                return;
+            }
+
+            routeMap = L.map('routeMap').setView([20, 0], 2);
+            tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors',
+            });
+            tileLayer.addTo(routeMap);
+        }
+
+        async function geocodeLocation(query) {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+            const response = await fetch(url, {
+                headers: { Accept: 'application/json' },
+            });
+
+            if (!response.ok) {
+                throw new Error('Unable to geocode location');
+            }
+
+            const results = await response.json();
+            if (!Array.isArray(results) || results.length === 0) {
+                throw new Error(`Location not found: ${query}`);
+            }
+
+            return {
+                lat: Number(results[0].lat),
+                lon: Number(results[0].lon),
+                label: results[0].display_name,
+            };
+        }
+
+        async function drawRoute() {
+            const startText = (startLocationInput.value || '').trim();
+            const destinationText = (destinationLocationInput.value || '').trim();
+
+            if (!startText || !destinationText) {
+                routeDistance.textContent = 'Please enter both start and destination.';
+                routeDistance.className = 'message error';
+                return;
+            }
+
+            showRouteBtn.disabled = true;
+            routeDistance.textContent = 'Finding route...';
+            routeDistance.className = 'message';
+
+            try {
+                initRouteMapIfNeeded();
+
+                const [start, destination] = await Promise.all([
+                    geocodeLocation(startText),
+                    geocodeLocation(destinationText),
+                ]);
+
+                const routeUrl = `https://router.project-osrm.org/route/v1/driving/${start.lon},${start.lat};${destination.lon},${destination.lat}?overview=full&geometries=geojson`;
+                const routeResponse = await fetch(routeUrl);
+
+                if (!routeResponse.ok) {
+                    throw new Error('Unable to calculate route');
+                }
+
+                const routeData = await routeResponse.json();
+                if (!routeData.routes || !routeData.routes.length) {
+                    throw new Error('No route found between these locations');
+                }
+
+                const route = routeData.routes[0];
+                const coordinates = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+                const distanceKm = route.distance / 1000;
+
+                if (routePolyline) {
+                    routeMap.removeLayer(routePolyline);
+                }
+                if (startMarker) {
+                    routeMap.removeLayer(startMarker);
+                }
+                if (destinationMarker) {
+                    routeMap.removeLayer(destinationMarker);
+                }
+
+                routePolyline = L.polyline(coordinates, { color: '#1d4ed8', weight: 5 }).addTo(routeMap);
+                startMarker = L.marker([start.lat, start.lon]).addTo(routeMap).bindPopup(`Start: ${start.label}`);
+                destinationMarker = L.marker([destination.lat, destination.lon]).addTo(routeMap).bindPopup(`Destination: ${destination.label}`);
+
+                routeMap.fitBounds(routePolyline.getBounds(), { padding: [30, 30] });
+
+                routeDistance.textContent = `Distance: ${distanceKm.toFixed(2)} km`;
+                routeDistance.className = 'message';
+            } catch (error) {
+                routeDistance.textContent = error.message || 'Failed to load route';
+                routeDistance.className = 'message error';
+            } finally {
+                showRouteBtn.disabled = false;
+            }
+        }
+
+        function normalizeCommand(command) {
+            return (command || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        }
+
+        function clickCameraByIndex(index) {
+            const cameraBtn = cameraButtonsContainer.querySelector(`[data-index="${index}"]`);
+            if (!cameraBtn) {
+                setMessage(`Camera ${index} not found`, true);
+                return false;
+            }
+            cameraBtn.click();
+            return true;
+        }
+
+        async function executeVoiceCommand(rawCommand) {
+            const command = normalizeCommand(rawCommand);
+            if (!command) {
+                return;
+            }
+
+            const routeMatch = command.match(/^route from (.+) to (.+)$/);
+            if (routeMatch) {
+                startLocationInput.value = routeMatch[1].trim();
+                destinationLocationInput.value = routeMatch[2].trim();
+                mapPanel.style.display = 'block';
+                initRouteMapIfNeeded();
+                setTimeout(() => routeMap.invalidateSize(), 0);
+                await drawRoute();
+                setMessage(`Voice command: ${rawCommand}`);
+                return;
+            }
+
+            const cameraMatch = command.match(/^select camera (\d+)$/);
+            if (cameraMatch) {
+                clickCameraByIndex(Number(cameraMatch[1]));
+                setMessage(`Voice command: ${rawCommand}`);
+                return;
+            }
+
+            if (command === 'help' || command === 'voice help') {
+                setMessage('Voice commands: start, stop, capture, start recording, stop recording, archives, map, close map, show route, refresh cameras, analyze audio, select camera <number>, enable/disable face/drone/knife/gun, route from <start> to <destination>');
+                return;
+            }
+
+            if (command === 'start') {
+                startBtn.click();
+            } else if (command === 'stop') {
+                stopBtn.click();
+            } else if (command === 'capture' || command === 'take capture' || command === 'take photo' || command === 'screenshot') {
+                captureBtn.click();
+            } else if (command === 'start recording') {
+                if (!isRecording) {
+                    recordBtn.click();
+                }
+            } else if (command === 'stop recording') {
+                if (isRecording) {
+                    recordBtn.click();
+                }
+            } else if (command === 'toggle recording' || command === 'record') {
+                recordBtn.click();
+            } else if (command === 'archives' || command === 'open archives') {
+                archivesBtn.click();
+            } else if (command === 'map' || command === 'open map' || command === 'show map') {
+                mapBtn.click();
+            } else if (command === 'close map' || command === 'hide map') {
+                closeMapBtn.click();
+            } else if (command === 'show route' || command === 'distance') {
+                await drawRoute();
+            } else if (command === 'refresh cameras' || command === 'refresh camera list') {
+                refreshCamerasBtn.click();
+            } else if (command === 'analyze audio' || command === 'audio detect') {
+                await analyzeAudioFile();
+            } else if (command === 'enable face' || command === 'disable face' || command === 'face detection') {
+                toggleFaceBtn.click();
+            } else if (command === 'enable drone' || command === 'disable drone' || command === 'drone detection') {
+                toggleDroneBtn.click();
+            } else if (command === 'enable knife' || command === 'disable knife' || command === 'knife detection') {
+                toggleKnifeBtn.click();
+            } else if (command === 'enable gun' || command === 'disable gun' || command === 'gun detection') {
+                if (!toggleGunBtn.disabled) {
+                    toggleGunBtn.click();
+                } else {
+                    setMessage('Gun detection is unavailable', true);
+                    return;
+                }
+            } else if (command === 'status' || command === 'refresh status') {
+                await refreshStatus();
+            } else {
+                setMessage(`Unknown voice command: ${rawCommand}`, true);
+                return;
+            }
+
+            if (command !== 'show route' && command !== 'distance') {
+                setMessage(`Voice command: ${rawCommand}`);
+            }
+        }
+
+        function updateVoiceButtonState() {
+            voiceBtn.textContent = voiceEnabled ? 'Disable Voice System' : 'Enable Voice System';
+            voiceBtn.classList.toggle('voice-active', voiceEnabled);
+        }
+
+        function disableVoiceSystem(reasonMessage) {
+            voiceEnabled = false;
+            if (voiceRecognition) {
+                voiceRecognition.onend = null;
+                voiceRecognition.stop();
+            }
+            updateVoiceButtonState();
+            if (reasonMessage) {
+                setMessage(reasonMessage, true);
+            }
+        }
+
+        function initVoiceRecognition() {
+            if (voiceRecognition) {
+                return true;
+            }
+
+            const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognitionClass) {
+                voiceBtn.disabled = true;
+                setMessage('Voice system not supported in this browser', true);
+                return false;
+            }
+
+            voiceRecognition = new SpeechRecognitionClass();
+            voiceRecognition.lang = 'en-US';
+            voiceRecognition.continuous = true;
+            voiceRecognition.interimResults = false;
+
+            voiceRecognition.onresult = async (event) => {
+                for (let index = event.resultIndex; index < event.results.length; index += 1) {
+                    const result = event.results[index];
+                    if (!result.isFinal) {
+                        continue;
+                    }
+                    const transcript = (result[0]?.transcript || '').trim();
+                    if (transcript) {
+                        await executeVoiceCommand(transcript);
+                    }
+                }
+            };
+
+            voiceRecognition.onerror = (event) => {
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    disableVoiceSystem('Microphone permission denied for voice system');
+                    return;
+                }
+
+                if (event.error !== 'no-speech' && voiceEnabled) {
+                    setMessage(`Voice system error: ${event.error}`, true);
+                }
+            };
+
+            voiceRecognition.onend = () => {
+                if (!voiceEnabled) {
+                    return;
+                }
+                try {
+                    voiceRecognition.start();
+                } catch (_) {
+                    disableVoiceSystem('Voice system stopped unexpectedly');
+                }
+            };
+
+            return true;
+        }
+
+        function toggleVoiceSystem() {
+            if (!voiceEnabled) {
+                if (!initVoiceRecognition()) {
+                    return;
+                }
+                voiceEnabled = true;
+                updateVoiceButtonState();
+                setMessage('Voice system enabled. Say "voice help" for available commands.');
+                try {
+                    voiceRecognition.start();
+                } catch (_) {
+                    disableVoiceSystem('Unable to start voice system');
+                }
+                return;
+            }
+
+            voiceEnabled = false;
+            updateVoiceButtonState();
+            if (voiceRecognition) {
+                voiceRecognition.stop();
+            }
+            setMessage('Voice system disabled');
+        }
+
+        async function selectCamera(index) {
+            try {
+                const data = await api('/api/select_camera', 'POST', { index });
+                selectedCamera.textContent = data.selected_camera || `Camera ${index}`;
+                setMessage(data.message);
+                await refreshStatus();
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        }
+
+        async function refreshStatus() {
+            try {
+                const data = await api('/api/status');
+                updateStatus(data.state);
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        }
+
+        async function refreshFps() {
+            try {
+                const response = await fetch('/api/fps');
+                const data = await response.json();
+                if (response.ok && typeof data.fps === 'number') {
+                    fpsValue.textContent = data.fps.toFixed(2);
+                }
+            } catch (_) {}
+        }
+
+        async function refreshAiStatus() {
+            try {
+                const response = await fetch('/api/ai_status');
+                const data = await response.json();
+                if (response.ok) {
+                    faceEnabled = !!data.face_enabled;
+                    droneEnabled = !!data.drone_enabled;
+                    knifeEnabled = !!data.knife_enabled;
+                    gunEnabled = !!data.gun_enabled;
+                    gunAvailable = !!data.gun_available;
+                    weaponEnabled = !!data.weapon_enabled;
+                    if (typeof data.audio_drone_available === 'boolean') {
+                        audioDroneStatus.textContent = data.audio_drone_available ? 'Ready' : 'Unavailable';
+                    }
+
+                    if (data.audio_drone_last_result && typeof data.audio_drone_last_result.detected === 'boolean') {
+                        const result = data.audio_drone_last_result;
+                        const confidencePct = Number(result.confidence || 0) * 100;
+                        setAudioResult(`${result.prediction} (${confidencePct.toFixed(1)}% confidence)`);
+                        audioDroneStatus.textContent = result.detected ? 'Detected' : 'Clear';
+                    }
+                    
+                    faceCount.textContent = String(data.faces_detected ?? 0);
+                    droneCount.textContent = String(data.drones_detected ?? 0);
+                    weaponCount.textContent = String(data.total_weapons ?? 0);
+                    knifeCount.textContent = String(data.knives_detected ?? 0);
+                    gunCount.textContent = String(data.guns_detected ?? 0);
+                    
+                    faceStatus.textContent = faceEnabled ? 'ON' : 'OFF';
+                    droneStatus.textContent = droneEnabled ? 'ON' : 'OFF';
+                    weaponStatus.textContent = weaponEnabled ? 'ON' : 'OFF';
+                    
+                    toggleFaceBtn.textContent = faceEnabled ? 'Disable Face' : 'Enable Face';
+                    toggleDroneBtn.textContent = droneEnabled ? 'Disable Drone' : 'Enable Drone';
+                    toggleKnifeBtn.textContent = knifeEnabled ? 'Disable Knife' : 'Enable Knife';
+                    toggleGunBtn.disabled = !gunAvailable;
+                    toggleGunBtn.textContent = gunAvailable
+                        ? (gunEnabled ? 'Disable Gun' : 'Enable Gun')
+                        : 'Gun Unavailable';
+                    
+                    // Show/hide warning
+                    if (data.multi_ai_active === true) {
+                        aiWarning.style.display = 'block';
+                    } else {
+                        aiWarning.style.display = 'none';
+                    }
+                }
+            } catch (_) {}
+        }
+
+        async function analyzeAudioFile() {
+            const selectedFile = audioFileInput.files && audioFileInput.files[0];
+            if (!selectedFile) {
+                setAudioResult('Please choose an audio file first.', true);
+                return;
+            }
+
+            analyzeAudioBtn.disabled = true;
+            setAudioResult('Analyzing audio signature...');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const response = await fetch('/api/audio_drone/predict', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+
+                if (!response.ok || data.success === false) {
+                    throw new Error(data.message || data.error || 'Audio analysis failed');
+                }
+
+                const confidencePct = Number(data.confidence || 0) * 100;
+                setAudioResult(`${data.prediction} (${confidencePct.toFixed(1)}% confidence)`);
+                audioDroneStatus.textContent = data.detected ? 'Detected' : 'Clear';
+                setMessage('Audio drone analysis complete');
+            } catch (error) {
+                setAudioResult(error.message || 'Audio analysis failed', true);
+            } finally {
+                analyzeAudioBtn.disabled = false;
+            }
+        }
+
+        // ===== AUDIO ARCHIVES =====
+        async function openAudioArchives() {
+            audioArchivesPanel.style.display = 'block';
+            await loadAudioArchives();
+        }
+
+        async function loadAudioArchives() {
+            archivesMessage.textContent = 'Loading detection archives...';
+            audioArchivesList.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/audio_drone/detections?limit=50');
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Failed to load archives');
+                }
+
+                const detections = data.detections || [];
+                
+                if (detections.length === 0) {
+                    archivesMessage.textContent = 'No detections saved yet.';
+                    audioArchivesList.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No drone sound detections saved yet. Enable auto-save during live detection to store detections automatically.</p>';
+                    return;
+                }
+
+                archivesMessage.textContent = `Found ${detections.length} detection(s)`;
+                
+                // Create table for detections
+                let html = '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+                html += '<thead><tr style="background: rgba(255,255,255,0.1); border-bottom: 2px solid #444;">';
+                html += '<th style="padding: 10px; text-align: left;">Timestamp</th>';
+                html += '<th style="padding: 10px; text-align: center;">Source</th>';
+                html += '<th style="padding: 10px; text-align: center;">Confidence</th>';
+                html += '<th style="padding: 10px; text-align: center;">Prediction</th>';
+                html += '<th style="padding: 10px; text-align: center;">Actions</th>';
+                html += '</tr></thead><tbody>';
+
+                detections.forEach((detection, index) => {
+                    const timestamp = new Date(detection.timestamp).toLocaleString();
+                    const confidence = (detection.confidence * 100).toFixed(1) + '%';
+                    const source = detection.source === 'live' ? '🔴 Live' : '📁 File';
+                    const bgColor = index % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent';
+                    
+                    html += `<tr style="background: ${bgColor}; border-bottom: 1px solid #333;">`;
+                    html += `<td style="padding: 10px;">${timestamp}</td>`;
+                    html += `<td style="padding: 10px; text-align: center;">${source}</td>`;
+                    html += `<td style="padding: 10px; text-align: center; color: ${detection.confidence > 0.8 ? '#ff4444' : '#ffaa44'};">${confidence}</td>`;
+                    html += `<td style="padding: 10px; text-align: center;">${detection.prediction}</td>`;
+                    html += `<td style="padding: 10px; text-align: center;">`;
+                    html += `<button onclick="playDetection('${detection.filename}')" style="margin: 0 5px; padding: 5px 10px; cursor: pointer; background: #28a745; border: none; border-radius: 4px; color: white;">▶️ Play</button>`;
+                    html += `<button onclick="deleteDetection('${detection.filename}')" style="margin: 0 5px; padding: 5px 10px; cursor: pointer; background: #dc3545; border: none; border-radius: 4px; color: white;">🗑️ Delete</button>`;
+                    html += `</td></tr>`;
+                });
+
+                html += '</tbody></table>';
+                audioArchivesList.innerHTML = html;
+
+            } catch (error) {
+                archivesMessage.textContent = 'Error loading archives';
+                audioArchivesList.innerHTML = `<p style="color: #ff4444; text-align: center; padding: 20px;">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function deleteDetection(filename) {
+            if (!confirm(`Delete detection "${filename}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/audio_drone/detections/${filename}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Failed to delete detection');
+                }
+
+                setMessage(`Deleted ${filename}`);
+                await loadAudioArchives(); // Reload the list
+            } catch (error) {
+                setMessage(`Error deleting detection: ${error.message}`, true);
+            }
+        }
+
+        function playDetection(filename) {
+            const audioUrl = `/static/captures/${filename}`;
+            const audio = new Audio(audioUrl);
+            audio.play().catch(error => {
+                setMessage(`Error playing audio: ${error.message}`, true);
+            });
+        }
+
+        // ===== LIVE DRONE SOUND DETECTION =====
+        let mediaStream = null;
+        let audioContext = null;
+        let analyser = null;
+        let scriptNode = null;
+        let liveDetectionActive = false;
+        let detectionInterval = null;
+        let audioBuffer = [];
+        let previousDetectionState = null; // Track previous detection state
+        let detectionStartTime = null; // Track when detection started
+
+        const liveDetectionBtn = document.getElementById('liveDetectionBtn');
+        const stopLiveDetectionBtn = document.getElementById('stopLiveDetectionBtn');
+        const spectrumCanvas = document.getElementById('spectrumCanvas');
+        const liveStatusContainer = document.getElementById('liveStatusContainer');
+        const detectionIndicator = document.getElementById('detectionIndicator');
+        const detectionLog = document.getElementById('detectionLog');
+        const frequencyDisplay = document.getElementById('frequencyDisplay');
+        const intensityDisplay = document.getElementById('intensityDisplay');
+
+        let canvasCtx = null;
+        let animationId = null;
+
+        // Function to add timestamped log entry
+        function addDetectionLog(message, isDetected = null) {
+            const timestamp = new Date().toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            
+            let color = '#00ff00'; // Default green
+            let icon = 'ℹ️';
+            
+            if (isDetected === true) {
+                color = '#ff0000'; // Red for detected
+                icon = '🚨';
+            } else if (isDetected === false) {
+                color = '#00ff00'; // Green for clear
+                icon = '✅';
+            }
+            
+            const logEntry = document.createElement('div');
+            logEntry.style.color = color;
+            logEntry.style.marginBottom = '4px';
+            logEntry.style.padding = '4px';
+            logEntry.style.borderLeft = `2px solid ${color}`;
+            logEntry.style.paddingLeft = '8px';
+            logEntry.innerHTML = `${icon} <span style="color: #888;">[${timestamp}]</span> ${message}`;
+            
+            detectionLog.insertBefore(logEntry, detectionLog.firstChild);
+            
+            // Keep only last 50 entries
+            while (detectionLog.children.length > 50) {
+                detectionLog.removeChild(detectionLog.lastChild);
+            }
+        }
+
+        // Function to update detection indicator
+        function updateDetectionIndicator(detected, confidence) {
+            if (detected) {
+                detectionIndicator.style.background = 'linear-gradient(135deg, rgba(255,0,0,0.3), rgba(255,0,0,0.1))';
+                detectionIndicator.style.border = '2px solid #ff0000';
+                detectionIndicator.style.color = '#ff0000';
+                detectionIndicator.style.animation = 'pulse 1s infinite';
+                detectionIndicator.innerHTML = `🚨 DRONE DETECTED! 🚨<br><span style="font-size: 12px;">Confidence: ${confidence}%</span>`;
+            } else {
+                detectionIndicator.style.background = 'linear-gradient(135deg, rgba(0,255,0,0.2), rgba(0,255,0,0.05))';
+                detectionIndicator.style.border = '2px solid #00ff00';
+                detectionIndicator.style.color = '#00ff00';
+                detectionIndicator.style.animation = 'none';
+                detectionIndicator.innerHTML = `✅ NO DRONE DETECTED<br><span style="font-size: 12px;">Area Clear</span>`;
+            }
+        }
+
+        // Function to encode Float32Array as WAV file
+        function encodeWAV(samples, sampleRate) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+
+            // WAV header
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // fmt chunk size
+            view.setUint16(20, 1, true); // PCM format
+            view.setUint16(22, 1, true); // mono channel
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true); // byte rate
+            view.setUint16(32, 2, true); // block align
+            view.setUint16(34, 16, true); // bits per sample
+            writeString(view, 36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+
+            // Convert float samples to 16-bit PCM
+            let offset = 44;
+            for (let i = 0; i < samples.length; i++) {
+                const s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                offset += 2;
+            }
+
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        async function startLiveDetection() {
+            try {
+                liveDetectionBtn.disabled = true;
+                setMessage('Requesting microphone access...');
+
+                // Request microphone access
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                source.connect(analyser);
+
+                liveDetectionActive = true;
+                previousDetectionState = null;
+                detectionStartTime = null;
+                spectrumCanvas.style.display = 'block';
+                liveStatusContainer.style.display = 'block';
+                liveDetectionBtn.style.display = 'none';
+                stopLiveDetectionBtn.style.display = 'inline-block';
+
+                canvasCtx = spectrumCanvas.getContext('2d');
+                spectrumCanvas.width = spectrumCanvas.offsetWidth * window.devicePixelRatio;
+                spectrumCanvas.height = spectrumCanvas.offsetHeight * window.devicePixelRatio;
+                canvasCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+                // Initialize detection indicator
+                detectionIndicator.style.background = 'linear-gradient(135deg, rgba(255,255,0,0.2), rgba(255,255,0,0.05))';
+                detectionIndicator.style.border = '2px solid #ffff00';
+                detectionIndicator.style.color = '#ffff00';
+                detectionIndicator.innerHTML = '🔍 Listening for drone sounds...';
+
+                // Clear and initialize log
+                detectionLog.innerHTML = '';
+                addDetectionLog('Live detection started - Monitoring audio stream');
+
+                setMessage('🎙️ Live drone sound detection active');
+                visualizeSpectrum();
+                startLiveAnalysis();
+
+            } catch (error) {
+                setMessage(`Microphone access denied: ${error.message}`, true);
+                liveDetectionBtn.disabled = false;
+            }
+        }
+
+        function stopLiveDetection() {
+            liveDetectionActive = false;
+
+            // Log if drone was being detected when stopped
+            if (previousDetectionState === true && detectionStartTime) {
+                const duration = Math.round((Date.now() - detectionStartTime) / 1000);
+                addDetectionLog(`Detection ended - Drone signal was active for ${duration} seconds`, false);
+            }
+
+            addDetectionLog('Live detection stopped');
+
+            if (detectionInterval) clearInterval(detectionInterval);
+            if (animationId) cancelAnimationFrame(animationId);
+
+            if (scriptNode) {
+                scriptNode.disconnect();
+                scriptNode = null;
+            }
+
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+
+            previousDetectionState = null;
+            detectionStartTime = null;
+            spectrumCanvas.style.display = 'none';
+            liveStatusContainer.style.display = 'none';
+            liveDetectionBtn.style.display = 'inline-block';
+            stopLiveDetectionBtn.style.display = 'none';
+            liveDetectionBtn.disabled = false;
+
+            frequencyDisplay.textContent = '-';
+            intensityDisplay.textContent = '-';
+
+            setMessage('Live detection stopped');
+        }
+
+        function visualizeSpectrum() {
+            if (!liveDetectionActive || !canvasCtx) return;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            const width = spectrumCanvas.offsetWidth;
+            const height = spectrumCanvas.offsetHeight;
+
+            // Clear canvas with fade effect
+            canvasCtx.fillStyle = 'rgba(10, 10, 10, 0.2)';
+            canvasCtx.fillRect(0, 0, width, height);
+
+            // Draw spectrum
+            canvasCtx.fillStyle = '#00ff00';
+            canvasCtx.strokeStyle = '#00ff00';
+            canvasCtx.lineWidth = 2;
+
+            const barWidth = width / bufferLength * 2.5;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const barHeight = (dataArray[i] / 255) * height;
+                
+                // Draw bar
+                canvasCtx.fillStyle = `hsl(${(i / bufferLength) * 120}, 100%, ${50 + (dataArray[i] / 255) * 30}%)`;
+                canvasCtx.fillRect(x, height - barHeight, barWidth - 1, barHeight);
+
+                x += barWidth;
+            }
+
+            // Draw frequency grid lines
+            canvasCtx.strokeStyle = 'rgba(0, 255, 0, 0.2)';
+            canvasCtx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const x = (width / 4) * i;
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(x, 0);
+                canvasCtx.lineTo(x, height);
+                canvasCtx.stroke();
+            }
+
+            // Find dominant frequency and intensity
+            let maxIndex = 0;
+            let maxValue = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                if (dataArray[i] > maxValue) {
+                    maxValue = dataArray[i];
+                    maxIndex = i;
+                }
+            }
+
+            const nyquist = audioContext.sampleRate / 2;
+            const dominantFreq = (maxIndex * nyquist) / bufferLength;
+            const intensity = (maxValue / 255 * 100).toFixed(1);
+
+            frequencyDisplay.textContent = Math.round(dominantFreq);
+            intensityDisplay.textContent = intensity;
+
+            animationId = requestAnimationFrame(visualizeSpectrum);
+        }
+
+        async function startLiveAnalysis() {
+            const sampleRate = audioContext.sampleRate;
+            
+            // Create a ScriptProcessorNode to continuously capture audio
+            const bufferSize = 4096;
+            let audioChunks = [];
+
+            scriptNode = audioContext.createScriptProcessor(bufferSize, 1, 1);
+            scriptNode.onaudioprocess = (event) => {
+                if (!liveDetectionActive) return;
+                const inputData = event.inputBuffer.getChannelData(0);
+                const buffer = new Float32Array(inputData);
+                audioChunks.push(buffer);
+            };
+
+            // Connect the script processor
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            source.connect(scriptNode);
+            scriptNode.connect(audioContext.destination);
+
+            detectionInterval = setInterval(async () => {
+                if (!liveDetectionActive) return;
+
+                try {
+                    // Concatenate all audio chunks
+                    const totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+                    const concatenated = new Float32Array(totalLength);
+                    let offset = 0;
+                    for (const chunk of audioChunks) {
+                        concatenated.set(chunk, offset);
+                        offset += chunk.length;
+                    }
+
+                    // Clear chunks for next iteration
+                    audioChunks = [];
+
+                    // Check if we have enough audio (at least 1 second)
+                    if (concatenated.length < sampleRate) {
+                        return;
+                    }
+
+                    // Take up to 3 seconds of audio
+                    const targetLength = sampleRate * 3;
+                    const audioSample = concatenated.length > targetLength 
+                        ? concatenated.slice(0, targetLength)
+                        : concatenated;
+
+                    // Calculate average intensity
+                    let sumSquares = 0;
+                    for (let i = 0; i < audioSample.length; i++) {
+                        sumSquares += audioSample[i] * audioSample[i];
+                    }
+                    const rms = Math.sqrt(sumSquares / audioSample.length);
+                    const avgIntensity = rms * 100;
+
+                    // Only analyze if there's meaningful sound
+                    if (avgIntensity > 0.5) {
+                        // Encode as proper WAV file
+                        const audioBlob = encodeWAV(audioSample, sampleRate);
+
+                        // Send to backend for prediction
+                        const formData = new FormData();
+                        formData.append('file', audioBlob, 'live_audio.wav');
+                        
+                        // Check if auto-save is enabled
+                        if (autoSaveCheckbox.checked) {
+                            formData.append('save_detection', 'true');
+                            formData.append('source', 'live');
+                        }
+
+                        const response = await fetch('/api/audio_drone/predict', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            const confidencePct = (result.confidence * 100).toFixed(1);
+                            const currentlyDetected = result.detected;
+
+                            // Update visual indicator
+                            updateDetectionIndicator(currentlyDetected, confidencePct);
+                            
+                            // Show save notification if detection was saved
+                            if (result.saved && result.saved_filename) {
+                                addDetectionLog(`💾 Detection saved: ${result.saved_filename}`, true);
+                            }
+
+                            // Check for state changes and log accordingly
+                            if (previousDetectionState === null) {
+                                // First detection check
+                                if (currentlyDetected) {
+                                    addDetectionLog(`🚨 DRONE DETECTED - Confidence: ${confidencePct}%`, true);
+                                    detectionStartTime = Date.now();
+                                    setMessage(`⚠️ DRONE SOUND DETECTED - Confidence: ${confidencePct}%`, true);
+                                } else {
+                                    addDetectionLog(`✅ Area Clear - No drone detected (Confidence: ${confidencePct}%)`, false);
+                                }
+                            } else if (previousDetectionState === false && currentlyDetected === true) {
+                                // Drone just detected (state change from clear to detected)
+                                addDetectionLog(`🚨 DRONE DETECTED - Signal acquired! Confidence: ${confidencePct}%`, true);
+                                detectionStartTime = Date.now();
+                                setMessage(`⚠️ DRONE SOUND DETECTED - Confidence: ${confidencePct}%`, true);
+                            } else if (previousDetectionState === true && currentlyDetected === false) {
+                                // Drone signal lost (state change from detected to clear)
+                                if (detectionStartTime) {
+                                    const duration = Math.round((Date.now() - detectionStartTime) / 1000);
+                                    addDetectionLog(`✅ SIGNAL LOST - Drone no longer detected (was active for ${duration}s)`, false);
+                                } else {
+                                    addDetectionLog(`✅ SIGNAL LOST - Drone no longer detected`, false);
+                                }
+                                detectionStartTime = null;
+                                setMessage('✅ Drone signal lost - Area clear');
+                            }
+                            // If state hasn't changed (detected -> detected or clear -> clear), don't log
+
+                            previousDetectionState = currentlyDetected;
+                        }
+                    } else {
+                        // Very low sound - treat as "no detection"
+                        if (previousDetectionState === true) {
+                            if (detectionStartTime) {
+                                const duration = Math.round((Date.now() - detectionStartTime) / 1000);
+                                addDetectionLog(`✅ SIGNAL LOST - Audio level too low (was active for ${duration}s)`, false);
+                            } else {
+                                addDetectionLog(`✅ SIGNAL LOST - Audio level too low`, false);
+                            }
+                            detectionStartTime = null;
+                            updateDetectionIndicator(false, '0.0');
+                            previousDetectionState = false;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Live detection error:', error);
+                    addDetectionLog(`⚠️ Detection error: ${error.message}`);
+                }
+            }, 3000); // Check every 3 seconds
+        }
+
+        liveDetectionBtn.addEventListener('click', startLiveDetection);
+        stopLiveDetectionBtn.addEventListener('click', stopLiveDetection);
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                const data = await api('/api/start', 'POST');
+                updateStatus(data.state);
+                setMessage(data.message);
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        });
+
+        stopBtn.addEventListener('click', async () => {
+            try {
+                const data = await api('/api/stop', 'POST');
+                updateStatus(data.state);
+                setMessage(data.message);
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        });
+
+        captureBtn.addEventListener('click', async () => {
+            try {
+                const data = await api('/api/capture', 'POST');
+                setMessage(data.filename ? `${data.message}: ${data.filename}` : data.message);
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        });
+
+        voiceBtn.addEventListener('click', toggleVoiceSystem);
+        analyzeAudioBtn.addEventListener('click', analyzeAudioFile);
+        audioArchivesBtn.addEventListener('click', openAudioArchives);
+        closeAudioArchivesBtn.addEventListener('click', () => {
+            audioArchivesPanel.style.display = 'none';
+        });
+        refreshArchivesBtn.addEventListener('click', loadAudioArchives);
+
+        recordBtn.addEventListener('click', async () => {
+            try {
+                if (!isRecording) {
+                    const data = await api('/api/record/start', 'POST');
+                    updateStatus(data.state);
+                    setMessage(data.filename ? `${data.message}: ${data.filename}` : data.message);
+                } else {
+                    const data = await api('/api/record/stop', 'POST');
+                    updateStatus(data.state);
+                    setMessage(data.message);
+                }
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        });
+
+        archivesBtn.addEventListener('click', () => {
+            window.open('/archives', '_blank');
+        });
+
+        mapBtn.addEventListener('click', () => {
+            mapPanel.style.display = 'block';
+            initRouteMapIfNeeded();
+            setTimeout(() => routeMap.invalidateSize(), 0);
+        });
+
+        closeMapBtn.addEventListener('click', () => {
+            mapPanel.style.display = 'none';
+        });
+
+        showRouteBtn.addEventListener('click', drawRoute);
+
+        destinationLocationInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                drawRoute();
+            }
+        });
+
+        toggleFaceBtn.addEventListener('click', async () => {
+            try {
+                const data = await api('/api/toggle_face', 'POST');
+                faceEnabled = !!data.enabled;
+                faceCount.textContent = String(data.faces_detected ?? 0);
+                faceStatus.textContent = faceEnabled ? 'ON' : 'OFF';
+                toggleFaceBtn.textContent = faceEnabled ? 'Disable Face' : 'Enable Face';
+                setMessage(data.message);
+                await refreshAiStatus(); // Refresh to update warning
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        });
+
+        toggleDroneBtn.addEventListener('click', async () => {
+            try {
+                const data = await api('/api/toggle_drone', 'POST');
+                droneEnabled = !!data.enabled;
+                droneCount.textContent = String(data.drones_detected ?? 0);
+                droneStatus.textContent = droneEnabled ? 'ON' : 'OFF';
+                toggleDroneBtn.textContent = droneEnabled ? 'Disable Drone' : 'Enable Drone';
+                setMessage(data.message);
+                await refreshAiStatus(); // Refresh to update warning
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        });
+
+        toggleKnifeBtn.addEventListener('click', async () => {
+            try {
+                const data = await api('/api/toggle_knife', 'POST');
+                knifeEnabled = !!data.knife_enabled;
+                gunEnabled = !!data.gun_enabled;
+                gunAvailable = !!data.gun_available;
+                weaponEnabled = knifeEnabled || gunEnabled;
+                weaponCount.textContent = String(data.total_weapons ?? 0);
+                knifeCount.textContent = String(data.knives_detected ?? 0);
+                gunCount.textContent = String(data.guns_detected ?? 0);
+                weaponStatus.textContent = weaponEnabled ? 'ON' : 'OFF';
+                toggleKnifeBtn.textContent = knifeEnabled ? 'Disable Knife' : 'Enable Knife';
+                toggleGunBtn.disabled = !gunAvailable;
+                toggleGunBtn.textContent = gunAvailable
+                    ? (gunEnabled ? 'Disable Gun' : 'Enable Gun')
+                    : 'Gun Unavailable';
+                setMessage(data.message);
+                await refreshAiStatus(); // Refresh to update warning
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        });
+
+        toggleGunBtn.addEventListener('click', async () => {
+            try {
+                const data = await api('/api/toggle_gun', 'POST');
+                knifeEnabled = !!data.knife_enabled;
+                gunEnabled = !!data.gun_enabled;
+                weaponEnabled = knifeEnabled || gunEnabled;
+                weaponCount.textContent = String(data.total_weapons ?? 0);
+                knifeCount.textContent = String(data.knives_detected ?? 0);
+                gunCount.textContent = String(data.guns_detected ?? 0);
+                weaponStatus.textContent = weaponEnabled ? 'ON' : 'OFF';
+                toggleKnifeBtn.textContent = knifeEnabled ? 'Disable Knife' : 'Enable Knife';
+                toggleGunBtn.textContent = gunEnabled ? 'Disable Gun' : 'Enable Gun';
+                setMessage(data.message);
+                await refreshAiStatus(); // Refresh to update warning
+            } catch (error) {
+                setMessage(error.message, true);
+            }
+        });
+
+        // Refresh cameras button
+        refreshCamerasBtn.addEventListener('click', async () => {
+            refreshCamerasBtn.disabled = true;
+            refreshCamerasBtn.textContent = '⏳ Refreshing...';
+            try {
+                await loadCameras(false); // Don't auto-select on manual refresh
+                // Reselect current camera if it's still available
+                if (currentCameraIndex !== null) {
+                    const currentBtn = cameraButtonsContainer.querySelector(`[data-index="${currentCameraIndex}"]`);
+                    if (currentBtn) {
+                        currentBtn.style.border = '2px solid #8fbf3a';
+                        currentBtn.style.background = 'rgba(143, 191, 58, 0.18)';
+                        currentBtn.style.color = '#e8ece5';
+                        currentBtn.style.fontWeight = 'bold';
+                    }
+                }
+            } finally {
+                refreshCamerasBtn.disabled = false;
+                refreshCamerasBtn.textContent = '🔄 Refresh';
+            }
+        });
+
+        loadCameras();
+        refreshStatus();
+        refreshFps();
+        refreshAiStatus();
+        setInterval(refreshFps, 1000);
+        setInterval(refreshAiStatus, 1000);
+        setInterval(refreshStatus, 1000);
+    </script>
+</body>
+</html>

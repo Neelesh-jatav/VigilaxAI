@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Archives - Captures & Recordings</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+    <main class="container">
+        <h1>Archives</h1>
+
+        <section class="panel controls">
+            <div class="status-row">
+                <p><strong>Saved Captures:</strong> {{ captures|length }}</p>
+                <p><strong>Saved Recordings:</strong> {{ recordings|length }}</p>
+                <button onclick="window.location.href='/'">Back to Live Feed</button>
+            </div>
+            <p id="shareStatus" class="message"></p>
+            <div class="system-share-panel">
+                <p><strong>System File Share</strong></p>
+                <div class="system-share-row">
+                    <input id="systemShareFile" type="file" />
+                    <button id="shareSystemFileBtn" type="button">Share Selected File</button>
+                </div>
+                <p class="message">Select any file from your system, then share using your device options (Bluetooth if available).</p>
+            </div>
+        </section>
+
+        <section class="panel archive-section">
+            <h2>Captures</h2>
+            {% if captures %}
+                <ul class="archive-list">
+                    {% for item in captures %}
+                        <li class="archive-item">
+                            <div class="archive-main">
+                                {% if item.is_image %}
+                                    <img src="{{ item.url }}" alt="{{ item.name }}" class="archive-preview-image" />
+                                {% endif %}
+                                <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.name }}</a>
+                            </div>
+                            <div class="archive-actions">
+                                <span>{{ item.size_kb }} KB</span>
+                                <button type="button" class="archive-share-btn" onclick="shareArchiveItem('{{ item.url }}', '{{ item.name }}', 'capture')">Share</button>
+                                <form method="post" action="{{ url_for('camera.delete_capture', filename=item.name) }}" onsubmit="return confirm('Are you sure you want to delete this capture?');">
+                                    <button type="submit" class="danger archive-delete-btn">Delete</button>
+                                </form>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="message">No captures found yet.</p>
+            {% endif %}
+        </section>
+
+        <section class="panel archive-section">
+            <h2>Recordings</h2>
+            {% if recordings %}
+                <ul class="archive-list">
+                    {% for item in recordings %}
+                        <li class="archive-item">
+                            <div class="archive-main">
+                                {% if item.is_video %}
+                                    <video class="archive-preview-video" controls preload="metadata">
+                                        <source src="{{ item.url }}" />
+                                    </video>
+                                {% endif %}
+                                <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.name }}</a>
+                            </div>
+                            <div class="archive-actions">
+                                <span>{{ item.size_kb }} KB</span>
+                                <button type="button" class="archive-share-btn" onclick="shareArchiveItem('{{ item.url }}', '{{ item.name }}', 'recording')">Share</button>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="message">No recordings found yet.</p>
+            {% endif %}
+        </section>
+    </main>
+
+    <script>
+        const shareStatus = document.getElementById('shareStatus');
+        const systemShareFile = document.getElementById('systemShareFile');
+        const shareSystemFileBtn = document.getElementById('shareSystemFileBtn');
+
+        function setShareStatus(message, isError = false) {
+            shareStatus.textContent = message;
+            shareStatus.className = isError ? 'message error' : 'message';
+        }
+
+        async function shareArchiveItem(relativeUrl, fileName, mediaType) {
+            const absoluteUrl = new URL(relativeUrl, window.location.origin).toString();
+
+            try {
+                if (navigator.share) {
+                    try {
+                        const response = await fetch(absoluteUrl);
+                        const blob = await response.blob();
+                        const file = new File([blob], fileName, { type: blob.type || 'application/octet-stream' });
+
+                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                            await navigator.share({
+                                title: `Share ${mediaType}`,
+                                text: fileName,
+                                files: [file],
+                            });
+                            setShareStatus(`${fileName} shared successfully.`);
+                            return;
+                        }
+                    } catch (_) {}
+
+                    await navigator.share({
+                        title: `Share ${mediaType}`,
+                        text: fileName,
+                        url: absoluteUrl,
+                    });
+                    setShareStatus(`${fileName} shared successfully.`);
+                    return;
+                }
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(absoluteUrl);
+                    setShareStatus('Sharing is not supported in this browser. Link copied to clipboard.');
+                    return;
+                }
+
+                window.open(absoluteUrl, '_blank', 'noopener,noreferrer');
+                setShareStatus('Sharing is not supported in this browser. Opened file in a new tab.');
+            } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    setShareStatus('Share cancelled.');
+                    return;
+                }
+                setShareStatus(`Share failed: ${error?.message || 'Unknown error'}`, true);
+            }
+        }
+
+        async function shareSelectedSystemFile() {
+            const selectedFile = systemShareFile.files && systemShareFile.files[0];
+            if (!selectedFile) {
+                setShareStatus('Please select a file first.', true);
+                return;
+            }
+
+            try {
+                if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [selectedFile] }))) {
+                    await navigator.share({
+                        title: 'Share file',
+                        text: selectedFile.name,
+                        files: [selectedFile],
+                    });
+                    setShareStatus(`${selectedFile.name} shared successfully.`);
+                    return;
+                }
+
+                setShareStatus('Direct file sharing is not supported in this browser/device.', true);
+            } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    setShareStatus('Share cancelled.');
+                    return;
+                }
+                setShareStatus(`Share failed: ${error?.message || 'Unknown error'}`, true);
+            }
+        }
+
+        shareSystemFileBtn.addEventListener('click', shareSelectedSystemFile);
+    </script>
+</body>
+</html>
