@@ -11,10 +11,10 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from app.services.face_detection_service import FaceDetectionService
-from app.services.drone_detection_service import DroneDetectionService
-from app.services.audio_drone_detection_service import AudioDroneDetectionService
-from app.services.weapon_detection_service import WeaponDetectionService
+from camera_feed_app.app.services.face_detection_service import FaceDetectionService
+from camera_feed_app.app.services.drone_detection_service import DroneDetectionService
+from camera_feed_app.app.services.audio_drone_detection_service import AudioDroneDetectionService
+from camera_feed_app.app.services.weapon_detection_service import WeaponDetectionService
 
 
 logger = logging.getLogger(__name__)

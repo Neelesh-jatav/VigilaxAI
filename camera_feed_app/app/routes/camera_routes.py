@@ -3,7 +3,7 @@ from pathlib import Path
 
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, send_file, url_for
 
-from app.services.camera_service import frame_generator, init_camera_manager
+from camera_feed_app.app.services.camera_service import frame_generator, init_camera_manager
 
 
 camera_bp = Blueprint("camera", __name__)
