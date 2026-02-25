@@ -1,4 +1,4 @@
-from app import create_app
+from camera_feed_app.app import create_app
 
 
 app = create_app()

@@ -3,7 +3,7 @@ from logging.handlers import RotatingFileHandler
 
 from flask import Flask
 
-from config import Config
+from camera_feed_app.config import Config
 
 
 def _configure_logging(app: Flask) -> None:
@@ -29,7 +29,7 @@ def create_app(config_class=Config) -> Flask:
 
     _configure_logging(app)
 
-    from app.routes.camera_routes import camera_bp
+    from camera_feed_app.app.routes.camera_routes import camera_bp
 
     app.register_blueprint(camera_bp)
 
