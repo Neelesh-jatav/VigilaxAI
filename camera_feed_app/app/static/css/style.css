@@ -1328,13 +1328,15 @@ input[type="checkbox"] {
 @media (min-width: 1024px) and (max-height: 950px) {
     html,
     body {
-        height: 100%;
-        overflow: hidden;
+        min-height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 
     .container {
-        height: 100vh;
-        overflow: hidden;
+        min-height: 100vh;
+        height: auto;
+        overflow: visible;
         display: flex;
         flex-direction: column;
         padding: 0 0.8rem 0.65rem;
@@ -2071,13 +2073,15 @@ input[type="checkbox"] {
 @media (min-width: 1320px) and (max-width: 1410px) and (max-height: 800px) {
     html,
     body {
-        height: 100%;
-        overflow: hidden;
+        min-height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 
     .container {
-        height: 100vh;
-        overflow: hidden;
+        min-height: 100vh;
+        height: auto;
+        overflow: visible;
         display: flex;
         flex-direction: column;
         padding: 0 0.85rem 0.55rem;

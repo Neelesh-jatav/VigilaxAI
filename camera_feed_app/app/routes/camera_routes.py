@@ -31,10 +31,6 @@ def index():
     resp = current_app.make_response(render_template("index.html"))
     resp.headers["Cache-Control"] = "public, max-age=300"  # 5 min cache for HTML
     return resp
-    # Cache HTML for 5 minutes to reduce re-renders on client refresh
-    return current_app.make_response(resp)
-    resp.headers["Cache-Control"] = "public, max-age=300"
-    return resp
 
 
 @camera_bp.get("/archives")
@@ -545,11 +541,11 @@ def serve_demo_image(filename: str):
     # Verify it's an image
     image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
     if file_path.suffix.lower() not in image_extensions:
-      sp = send_file(file_path)
+        abort(403)
+
+    resp = send_file(file_path)
     resp.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour for demo images
     return resp
-    
-    return send_file(file_path)
 
 
 @camera_bp.get("/api/demo_audio")
@@ -585,8 +581,8 @@ def serve_demo_audio(filename: str):
 
     audio_extensions = {".wav", ".mp3", ".ogg", ".m4a", ".flac"}
     if file_path.suffix.lower() not in audio_extensions:
-      sp = send_file(file_path)
+        abort(403)
+
+    resp = send_file(file_path)
     resp.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour for demo audio
     return resp
-
-    return send_file(file_path)
