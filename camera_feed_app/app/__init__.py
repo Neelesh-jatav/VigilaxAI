@@ -23,6 +23,15 @@ def _configure_logging(app: Flask) -> None:
 def create_app(config_class=Config) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_class)
+    
+    # Enable Gzip compression for JSON/HTML responses
+    app.config["COMPRESS_MIMETYPES"] = [
+        "text/html", "text/css", "text/xml",
+        "text/javascript", "application/json"
+    ]
+    app.config["COMPRESS_MIN_SIZE"] = 500
+    from flask_compress import Compress
+    Compress(app)
 
     app.config["CAPTURES_DIR"].mkdir(parents=True, exist_ok=True)
     app.config["RECORDINGS_DIR"].mkdir(parents=True, exist_ok=True)
@@ -36,6 +45,8 @@ def create_app(config_class=Config) -> Flask:
 
     @app.get("/favicon.ico")
     def favicon():
-        return send_from_directory(app.static_folder, "favicon.svg", mimetype="image/svg+xml")
+        resp = send_from_directory(app.static_folder, "favicon.svg", mimetype="image/svg+xml")
+        resp.headers["Cache-Control"] = "public, max-age=86400"  # 1 day
+        return resp
 
     return app

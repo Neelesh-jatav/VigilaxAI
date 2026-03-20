@@ -25,7 +25,13 @@ def _manager():
 
 @camera_bp.get("/")
 def index():
-    return render_template("index.html")
+    resp = current_app.make_response(render_template("index.html"))
+    resp.headers["Cache-Control"] = "public, max-age=300"  # 5 min cache for HTML
+    return resp
+    # Cache HTML for 5 minutes to reduce re-renders on client refresh
+    return current_app.make_response(resp)
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    return resp
 
 
 @camera_bp.get("/archives")
@@ -93,7 +99,9 @@ def archives_media(media_type: str, filename: str):
     for directory in (primary_dir, fallback_dir):
         file_path = directory / safe_name
         if file_path.exists() and file_path.is_file():
-            return send_file(file_path)
+            resp = send_file(file_path)
+            resp.headers["Cache-Control"] = "public, max-age=86400"  # 1 day cache for media
+            return resp
 
     abort(404)
 
@@ -534,7 +542,9 @@ def serve_demo_image(filename: str):
     # Verify it's an image
     image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
     if file_path.suffix.lower() not in image_extensions:
-        abort(403)
+      sp = send_file(file_path)
+    resp.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour for demo images
+    return resp
     
     return send_file(file_path)
 
@@ -570,6 +580,8 @@ def serve_demo_audio(filename: str):
 
     audio_extensions = {".wav", ".mp3", ".ogg", ".m4a", ".flac"}
     if file_path.suffix.lower() not in audio_extensions:
-        abort(403)
+      sp = send_file(file_path)
+    resp.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour for demo audio
+    return resp
 
     return send_file(file_path)
