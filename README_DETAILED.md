@@ -180,6 +180,12 @@ In camera reader loop:
 - `GET /api/audio_drone/detections`
 - `DELETE /api/audio_drone/detections/<filename>`
 
+### Demo Testing
+- `GET /api/demo_images` — list demo gallery images
+- `GET /demo_image/<filename>` — serve demo image file
+- `GET /api/demo_audio` — return configured demo audio metadata
+- `GET /demo_audio/<filename>` — serve demo audio file
+
 ---
 
 ## 6) Frontend Behavior and UX Flows
@@ -189,6 +195,7 @@ In camera reader loop:
 - Start/stop stream, capture, record controls
 - AI toggles for face/drone/knife/gun
 - Real-time status indicators for detector states and counts
+- Demo Testing panel with auto-loading image gallery, manual run-detection button, and demo-audio analysis shortcut
 
 ### Live Audio Monitoring (Browser)
 - Uses `navigator.mediaDevices.getUserMedia({ audio: true })`
@@ -235,10 +242,14 @@ If primary write paths fail, fallback path is used:
 
 ### Camera App Requirements (`camera_feed_app/requirements.txt`)
 - `Flask==3.0.3`
-- `opencv-python==4.10.0.84`
+- `opencv-python-headless==4.10.0.84`
 - `gunicorn==22.0.0`
 - `python-dotenv==1.0.1`
 - `ultralytics>=8.3.0`
+- `tensorflow>=2.14.0`
+- `librosa>=0.10.0`
+- `scipy>=1.11.0`
+- `numpy>=1.24.0`
 
 ### Audio Training/Tooling (`audio1/requirements.txt`)
 - `flask`, `numpy`, `librosa`, `matplotlib`, `tensorflow`, `scikit-learn`, `Pillow`
@@ -278,6 +289,8 @@ VigilaxAI/
 │   ├── train_model.py
 │   ├── backend/model/drone_audio_model.h5
 │   └── dataset/
+├── render.yaml
+├── runtime.txt
 ├── requirements.txt
 └── README.md
 ```
@@ -390,12 +403,18 @@ python run.py
 ## 11) Deployment
 
 ### Procfile Options in Repo
-- Root Procfile: `web: gunicorn camera_feed_app.run:app --bind 0.0.0.0:$PORT`
-- App Procfile: `web: gunicorn run:app --bind 0.0.0.0:${PORT:-5000}` (from `camera_feed_app/` context)
+- Root Procfile: `web: gunicorn camera_feed_app.run:app --bind 0.0.0.0:$PORT --timeout 180`
+- App Procfile: `web: gunicorn run:app --bind 0.0.0.0:${PORT:-5000} --timeout 180` (from `camera_feed_app/` context)
+
+### Render Blueprint (Included)
+- `render.yaml` included at repo root
+- `runtime.txt` pins Python runtime
+- Build: `pip install -r requirements.txt`
+- Start: `gunicorn camera_feed_app.run:app --bind 0.0.0.0:$PORT --timeout 180`
 
 ### Direct Gunicorn
 ```bash
-gunicorn camera_feed_app.run:app --bind 0.0.0.0:$PORT
+gunicorn camera_feed_app.run:app --bind 0.0.0.0:$PORT --timeout 180
 ```
 
 ---

@@ -12,6 +12,8 @@ It supports:
 - 📹 Live camera streaming (single/multi-camera environments)
 - 🎯 Visual drone detection
 - 🎙️ Audio drone signature detection (TensorFlow model)
+- 🧪 Demo Testing panel (auto-load demo images + one-click detection)
+- 🎵 Demo MP3 analysis for drone-audio prediction
 - 🧑 Face detection
 - 🔪🔫 Weapon detection (knife/gun)
 - 💾 Snapshot capture and video recording
@@ -108,6 +110,12 @@ http://127.0.0.1:5000
 - `GET /api/audio_drone/detections`
 - `DELETE /api/audio_drone/detections/<filename>`
 
+### Demo Testing
+- `GET /api/demo_images` — list demo images for gallery
+- `GET /demo_image/<filename>` — serve demo image files
+- `GET /api/demo_audio` — fetch configured demo audio metadata
+- `GET /demo_audio/<filename>` — serve demo audio file
+
 ### Media & Archives
 - `POST /api/capture`
 - `POST /api/record/start`
@@ -126,6 +134,45 @@ Common options:
 - `DRONE_*` and `ROBOFLOW_*` for visual drone detection
 - `AUDIO_DRONE_*` for audio model path, threshold, and spectrogram settings
 - `WEAPON_*` for knife/gun detection behavior
+- `DEMO_TESTING_DIR` for optional custom demo-media folder path
+
+---
+
+## ☁️ Render Deployment (Ready)
+
+This repo is now configured for Render deployment.
+
+Included deployment files:
+- `render.yaml` (service blueprint)
+- `runtime.txt` (Python runtime pin)
+- `Procfile` (Gunicorn start command)
+
+### Render Build/Start
+
+- **Build command:** `pip install -r requirements.txt`
+- **Start command:** `gunicorn camera_feed_app.run:app --bind 0.0.0.0:$PORT --timeout 180`
+
+### Deploy Steps
+
+1. Push code to GitHub.
+2. In Render, create a **Web Service** from this repository.
+3. Use the detected `render.yaml` blueprint, or manually set the same build/start commands.
+4. Add required environment variables (if using Roboflow/custom models).
+5. Deploy.
+
+### Recommended Environment Variables
+
+- `FLASK_DEBUG=false`
+- `LOG_LEVEL=INFO`
+- `ROBOFLOW_API_KEY` (optional, if using API-based drone model)
+- `WEAPON_GUN_ROBOFLOW_API_KEY` (optional)
+- `DEMO_TESTING_DIR` (optional; local Windows demo path will not exist on Render by default)
+
+### Notes For Cloud Runtime
+
+- OpenCV is configured via `opencv-python-headless` for Linux/cloud compatibility.
+- Gunicorn timeout is set to `180` seconds to allow large AI models to load on startup.
+- If demo media files are not available in cloud, demo endpoints return safe empty responses instead of failing app startup.
 
 ---
 
