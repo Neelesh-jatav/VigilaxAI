@@ -19,11 +19,6 @@ DEMO_TESTING_DIR = Path(os.getenv("DEMO_TESTING_DIR", "C:\\Users\\neele\\Downloa
 DEMO_AUDIO_FILENAME = "Flying Drone Sound Effect.mp3"
 
 
-@camera_bp.record_once
-def on_load(state):
-    init_camera_manager(state.app.config)
-
-
 def _manager():
     return init_camera_manager(current_app.config)
 
