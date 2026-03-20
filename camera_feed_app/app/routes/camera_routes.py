@@ -15,12 +15,15 @@ camera_bp = Blueprint("camera", __name__)
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "bmp", "webp"}
 VIDEO_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "mjpeg", "webm"}
 ALLOWED_MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
-DEMO_TESTING_DIR = Path(os.getenv("DEMO_TESTING_DIR", "C:\\Users\\neele\\Downloads\\demo testing"))
-DEMO_AUDIO_FILENAME = "Flying Drone Sound Effect.mp3"
 
 
 def _manager():
     return init_camera_manager(current_app.config)
+
+
+def _get_demo_dir():
+    """Get demo testing directory from config."""
+    return Path(current_app.config.get("DEMO_TESTING_DIR", "camera_feed_app/demo"))
 
 
 @camera_bp.get("/")
@@ -505,7 +508,7 @@ def detection_status():
 @camera_bp.get("/api/demo_images")
 def get_demo_images():
     """List all images from the demo testing folder."""
-    demo_folder = DEMO_TESTING_DIR
+    demo_folder = _get_demo_dir()
     
     if not demo_folder.exists():
         return jsonify({"success": True, "images": [], "message": "Demo folder not found on this environment"})
@@ -533,7 +536,7 @@ def serve_demo_image(filename: str):
     if safe_name != filename:
         abort(400)
     
-    demo_folder = DEMO_TESTING_DIR
+    demo_folder = _get_demo_dir()
     file_path = demo_folder / safe_name
     
     if not file_path.exists() or not file_path.is_file():
@@ -552,7 +555,8 @@ def serve_demo_image(filename: str):
 @camera_bp.get("/api/demo_audio")
 def get_demo_audio():
     """Return the configured demo audio file used for drone-audio testing."""
-    file_path = DEMO_TESTING_DIR / DEMO_AUDIO_FILENAME
+    demo_folder = _get_demo_dir()
+    file_path = demo_folder / "Flying Drone Sound Effect.mp3"
     if not file_path.exists() or not file_path.is_file():
         return jsonify({"success": True, "audio": None, "message": "Demo audio file not found on this environment"})
 
@@ -574,7 +578,8 @@ def serve_demo_audio(filename: str):
     if safe_name != filename:
         abort(400)
 
-    file_path = DEMO_TESTING_DIR / safe_name
+    demo_folder = _get_demo_dir()
+    file_path = demo_folder / safe_name
     if not file_path.exists() or not file_path.is_file():
         abort(404)
 

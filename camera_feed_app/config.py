@@ -24,6 +24,7 @@ class Config:
     CAPTURES_DIR = BASE_DIR / "app" / "static" / "captures"
     RECORDINGS_DIR = BASE_DIR / "app" / "static" / "recordings"
     UPLOADS_DIR = BASE_DIR / "app" / "static" / "uploads"
+    DEMO_TESTING_DIR = Path(os.getenv("DEMO_TESTING_DIR", str(BASE_DIR / "demo")))
 
     # Drone Detection Configuration (face detection is handled separately)
     # Roboflow API settings (recommended) - uses serverless API, no local weights needed
