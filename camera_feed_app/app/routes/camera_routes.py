@@ -1,3 +1,4 @@
+import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +15,7 @@ camera_bp = Blueprint("camera", __name__)
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "bmp", "webp"}
 VIDEO_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "mjpeg", "webm"}
 ALLOWED_MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
-DEMO_TESTING_DIR = Path("C:\\Users\\neele\\Downloads\\demo testing")
+DEMO_TESTING_DIR = Path(os.getenv("DEMO_TESTING_DIR", "C:\\Users\\neele\\Downloads\\demo testing"))
 DEMO_AUDIO_FILENAME = "Flying Drone Sound Effect.mp3"
 
 
@@ -504,7 +505,7 @@ def get_demo_images():
     demo_folder = DEMO_TESTING_DIR
     
     if not demo_folder.exists():
-        return jsonify({"success": False, "images": [], "message": "Demo folder not found"}), 404
+        return jsonify({"success": True, "images": [], "message": "Demo folder not found on this environment"})
     
     images = []
     image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -517,7 +518,7 @@ def get_demo_images():
                     "url": url_for("camera.serve_demo_image", filename=file_path.name)
                 })
     except Exception as e:
-        return jsonify({"success": False, "images": [], "message": str(e)}), 500
+        return jsonify({"success": True, "images": [], "message": str(e)})
     
     return jsonify({"success": True, "images": images, "message": f"Found {len(images)} demo images"})
 
@@ -548,7 +549,7 @@ def get_demo_audio():
     """Return the configured demo audio file used for drone-audio testing."""
     file_path = DEMO_TESTING_DIR / DEMO_AUDIO_FILENAME
     if not file_path.exists() or not file_path.is_file():
-        return jsonify({"success": False, "message": "Demo audio file not found"}), 404
+        return jsonify({"success": True, "audio": None, "message": "Demo audio file not found on this environment"})
 
     return jsonify(
         {

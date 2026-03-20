@@ -1,1 +1,1 @@
-web: gunicorn camera_feed_app.run:app --bind 0.0.0.0:$PORT
+web: gunicorn camera_feed_app.run:app --bind 0.0.0.0:$PORT --timeout 180

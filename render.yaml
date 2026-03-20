@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: vigilaxai
+    env: python
+    plan: free
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn camera_feed_app.run:app --bind 0.0.0.0:$PORT --timeout 180
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: FLASK_DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
