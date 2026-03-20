@@ -1,12 +1,21 @@
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
+import cv2
+import numpy as np
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, send_file, url_for
 
 from camera_feed_app.app.services.camera_service import frame_generator, init_camera_manager
 
 
 camera_bp = Blueprint("camera", __name__)
+
+IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "bmp", "webp"}
+VIDEO_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "mjpeg", "webm"}
+ALLOWED_MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+DEMO_TESTING_DIR = Path("C:\\Users\\neele\\Downloads\\demo testing")
+DEMO_AUDIO_FILENAME = "Flying Drone Sound Effect.mp3"
 
 
 @camera_bp.record_once
@@ -310,6 +319,108 @@ def audio_drone_status():
     return jsonify({"success": True, **status})
 
 
+@camera_bp.post("/api/media/detect")
+def media_detect():
+    """Run active visual detections on uploaded image/video and return processed media URL."""
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        return jsonify({"success": False, "message": "No media file uploaded"}), 400
+
+    extension = Path(file.filename).suffix.lower().lstrip(".")
+    if extension not in ALLOWED_MEDIA_EXTENSIONS:
+        return jsonify({"success": False, "message": "Unsupported media format"}), 400
+
+    uploads_dir = Path(current_app.config.get("UPLOADS_DIR"))
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    manager = _manager()
+
+    if extension in IMAGE_EXTENSIONS:
+        payload = file.read()
+        buffer = np.frombuffer(payload, dtype=np.uint8)
+        frame = cv2.imdecode(buffer, cv2.IMREAD_COLOR)
+        if frame is None:
+            return jsonify({"success": False, "message": "Unable to decode image"}), 400
+
+        processed_frame = manager.process_uploaded_frame(frame)
+        output_name = f"processed_{timestamp}.jpg"
+        output_path = uploads_dir / output_name
+
+        encoded_ok, encoded = cv2.imencode(".jpg", processed_frame)
+        if not encoded_ok:
+            return jsonify({"success": False, "message": "Failed to encode processed image"}), 500
+
+        output_path.write_bytes(encoded.tobytes())
+        return jsonify(
+            {
+                "success": True,
+                "media_type": "image",
+                "processed_url": url_for("static", filename=f"uploads/{output_name}"),
+                "message": "Image processed successfully",
+            }
+        )
+
+    temp_input_path = uploads_dir / f"upload_{timestamp}.{extension}"
+    output_name = f"processed_{timestamp}.mp4"
+    output_path = uploads_dir / output_name
+
+    try:
+        file.save(str(temp_input_path))
+
+        capture = cv2.VideoCapture(str(temp_input_path))
+        if not capture.isOpened():
+            return jsonify({"success": False, "message": "Unable to read uploaded video"}), 400
+
+        source_fps = float(capture.get(cv2.CAP_PROP_FPS))
+        source_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        source_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        if source_width <= 0 or source_height <= 0:
+            capture.release()
+            return jsonify({"success": False, "message": "Invalid video dimensions"}), 400
+
+        output_fps = source_fps if 1.0 <= source_fps <= 120.0 else float(max(current_app.config.get("CAMERA_FPS", 20), 1))
+        writer = cv2.VideoWriter(
+            str(output_path),
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            output_fps,
+            (source_width, source_height),
+        )
+
+        if not writer.isOpened():
+            capture.release()
+            return jsonify({"success": False, "message": "Unable to create processed video"}), 500
+
+        frame_count = 0
+        while True:
+            ok, frame = capture.read()
+            if not ok:
+                break
+
+            processed_frame = manager.process_uploaded_frame(frame)
+            writer.write(processed_frame)
+            frame_count += 1
+
+        capture.release()
+        writer.release()
+
+        if frame_count == 0:
+            output_path.unlink(missing_ok=True)
+            return jsonify({"success": False, "message": "Uploaded video has no readable frames"}), 400
+
+        return jsonify(
+            {
+                "success": True,
+                "media_type": "video",
+                "processed_url": url_for("static", filename=f"uploads/{output_name}"),
+                "message": "Video processed successfully",
+            }
+        )
+    finally:
+        temp_input_path.unlink(missing_ok=True)
+
+
 @camera_bp.post("/api/audio_drone/predict")
 def audio_drone_predict():
     """Predict drone presence from uploaded audio file."""
@@ -385,3 +496,84 @@ def detection_status():
     """Legacy endpoint - returns face detection status."""
     status = _manager().get_face_detection_status()
     return jsonify(status)
+
+
+@camera_bp.get("/api/demo_images")
+def get_demo_images():
+    """List all images from the demo testing folder."""
+    demo_folder = DEMO_TESTING_DIR
+    
+    if not demo_folder.exists():
+        return jsonify({"success": False, "images": [], "message": "Demo folder not found"}), 404
+    
+    images = []
+    image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+    
+    try:
+        for file_path in sorted(demo_folder.iterdir()):
+            if file_path.is_file() and file_path.suffix.lower() in image_extensions:
+                images.append({
+                    "name": file_path.name,
+                    "url": url_for("camera.serve_demo_image", filename=file_path.name)
+                })
+    except Exception as e:
+        return jsonify({"success": False, "images": [], "message": str(e)}), 500
+    
+    return jsonify({"success": True, "images": images, "message": f"Found {len(images)} demo images"})
+
+
+@camera_bp.get("/demo_image/<path:filename>")
+def serve_demo_image(filename: str):
+    """Serve a demo image file."""
+    safe_name = Path(filename).name
+    if safe_name != filename:
+        abort(400)
+    
+    demo_folder = DEMO_TESTING_DIR
+    file_path = demo_folder / safe_name
+    
+    if not file_path.exists() or not file_path.is_file():
+        abort(404)
+    
+    # Verify it's an image
+    image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+    if file_path.suffix.lower() not in image_extensions:
+        abort(403)
+    
+    return send_file(file_path)
+
+
+@camera_bp.get("/api/demo_audio")
+def get_demo_audio():
+    """Return the configured demo audio file used for drone-audio testing."""
+    file_path = DEMO_TESTING_DIR / DEMO_AUDIO_FILENAME
+    if not file_path.exists() or not file_path.is_file():
+        return jsonify({"success": False, "message": "Demo audio file not found"}), 404
+
+    return jsonify(
+        {
+            "success": True,
+            "audio": {
+                "name": file_path.name,
+                "url": url_for("camera.serve_demo_audio", filename=file_path.name),
+            },
+        }
+    )
+
+
+@camera_bp.get("/demo_audio/<path:filename>")
+def serve_demo_audio(filename: str):
+    """Serve a demo audio file from the demo testing folder."""
+    safe_name = Path(filename).name
+    if safe_name != filename:
+        abort(400)
+
+    file_path = DEMO_TESTING_DIR / safe_name
+    if not file_path.exists() or not file_path.is_file():
+        abort(404)
+
+    audio_extensions = {".wav", ".mp3", ".ogg", ".m4a", ".flac"}
+    if file_path.suffix.lower() not in audio_extensions:
+        abort(403)
+
+    return send_file(file_path)

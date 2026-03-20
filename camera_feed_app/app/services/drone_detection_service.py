@@ -22,6 +22,21 @@ class DroneDetectionService:
     For true drone detection, Roboflow model is pre-trained on actual drone dataset (95.9% mAP).
     """
 
+    @staticmethod
+    def _draw_overlay_text(frame, text: str, origin: Tuple[int, int], text_color: Tuple[int, int, int], font_scale: float = 0.7, thickness: int = 2) -> None:
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+        x, y = origin
+        x = max(8, x)
+        y = max(text_h + baseline + 8, y)
+
+        top_left = (x - 6, y - text_h - baseline - 6)
+        bottom_right = (x + text_w + 6, y + 6)
+
+        cv2.rectangle(frame, top_left, bottom_right, (0, 0, 0), -1)
+        cv2.rectangle(frame, top_left, bottom_right, (40, 40, 40), 1)
+        cv2.putText(frame, text, (x, y - 2), font, font_scale, text_color, thickness, cv2.LINE_AA)
+
     def __init__(
         self,
         model_path: str = "yolov8s.pt",
@@ -196,7 +211,7 @@ class DroneDetectionService:
         with self._lock:
             return self._enabled
 
-    def detect_drones(self, frame) -> Optional[object]:
+    def detect_drones(self, frame, force: bool = False) -> Optional[object]:
         if frame is None:
             return frame
 
@@ -205,7 +220,7 @@ class DroneDetectionService:
                 return self._add_status_overlays(frame, [], False)
 
             self._frame_counter += 1
-            if self._frame_counter % self._detection_interval != 0:
+            if not force and self._frame_counter % self._detection_interval != 0:
                 frame = self._draw_detections(frame, self._last_detections)
                 return self._add_status_overlays(frame, self._last_detections, True)
 
@@ -343,31 +358,20 @@ class DroneDetectionService:
         frame_h, frame_w = frame.shape[:2]
 
         drone_label = f"Drones: {len(detections)}"
-        drone_size = cv2.getTextSize(drone_label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+        drone_size = cv2.getTextSize(drone_label, cv2.FONT_HERSHEY_DUPLEX, 0.7, 2)[0]
         drone_origin = (max(10, frame_w - drone_size[0] - 10), 65)
-        cv2.putText(
-            frame,
-            drone_label,
-            drone_origin,
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 0, 255),
-            2,
-            cv2.LINE_AA,
-        )
+        self._draw_overlay_text(frame, drone_label, drone_origin, (255, 145, 255), 0.7, 2)
 
         status_label = f"Drone: {'ON' if is_enabled else 'OFF'}"
-        status_size = cv2.getTextSize(status_label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+        status_size = cv2.getTextSize(status_label, cv2.FONT_HERSHEY_DUPLEX, 0.7, 2)[0]
         status_origin = (max(10, frame_w - status_size[0] - 10), max(25, frame_h - 47))
-        cv2.putText(
+        self._draw_overlay_text(
             frame,
             status_label,
             status_origin,
-            cv2.FONT_HERSHEY_SIMPLEX,
+            (120, 255, 180) if is_enabled else (130, 160, 255),
             0.7,
-            (255, 100, 0) if is_enabled else (128, 100, 0),
             2,
-            cv2.LINE_AA,
         )
 
         return frame

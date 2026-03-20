@@ -31,6 +31,22 @@ class WeaponDetectionService:
     Follows the same modular pattern as DroneDetectionService.
     """
 
+    @staticmethod
+    def _draw_overlay_text(frame, text: str, origin: Tuple[int, int], text_color: Tuple[int, int, int], font_scale: float = 0.7, thickness: int = 2) -> None:
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+        x, y = origin
+        x = max(8, x)
+        y = max(text_h + baseline + 8, y)
+
+        top_left = (x - 6, y - text_h - baseline - 6)
+        bottom_right = (x + text_w + 6, y + 6)
+
+        cv2.rectangle(frame, top_left, bottom_right, (0, 0, 0), -1)
+        cv2.rectangle(frame, top_left, bottom_right, (40, 40, 40), 1)
+        cv2.putText(frame, text, (x, y - 2), font, font_scale, text_color, thickness, cv2.LINE_AA)
+        cv2.putText(frame, text, (x, y - 2), font, font_scale, text_color, thickness, cv2.LINE_AA)
+
     def __init__(
         self,
         base_model_path: str = "yolov8n.pt",
@@ -211,7 +227,7 @@ class WeaponDetectionService:
         with self._lock:
             return self._knife_enabled or self._gun_enabled
 
-    def detect_weapons(self, frame) -> Optional[object]:
+    def detect_weapons(self, frame, force: bool = False) -> Optional[object]:
         """Run weapon detection on frame. Returns annotated frame."""
         if frame is None:
             return frame
@@ -224,7 +240,7 @@ class WeaponDetectionService:
                 return self._add_status_overlays(frame, False)
 
             self._frame_counter += 1
-            if self._frame_counter % self._detection_interval != 0:
+            if not force and self._frame_counter % self._detection_interval != 0:
                 # Reuse previous detections on skipped frames
                 frame = self._draw_detections(frame)
                 return self._add_status_overlays(frame)
@@ -400,21 +416,19 @@ class WeaponDetectionService:
 
         # Top right - weapon counts (below drone overlay area)
         weapon_label = f"Weapons: {total}"
-        weapon_size = cv2.getTextSize(weapon_label, font, 0.7, 2)[0]
+        weapon_size = cv2.getTextSize(weapon_label, cv2.FONT_HERSHEY_DUPLEX, 0.7, 2)[0]
         weapon_origin = (max(10, frame_w - weapon_size[0] - 10), 90)
-        cv2.putText(frame, weapon_label, weapon_origin, font, 0.7, (0, 100, 255), 2, cv2.LINE_AA)
+        self._draw_overlay_text(frame, weapon_label, weapon_origin, (120, 210, 255), 0.7, 2)
 
         if self._knife_count > 0:
             knife_label = f"Knives: {self._knife_count}"
-            knife_size = cv2.getTextSize(knife_label, font, 0.55, 2)[0]
-            cv2.putText(frame, knife_label, (max(10, frame_w - knife_size[0] - 10), 115),
-                        font, 0.55, COLOR_KNIFE, 2, cv2.LINE_AA)
+            knife_size = cv2.getTextSize(knife_label, cv2.FONT_HERSHEY_DUPLEX, 0.58, 2)[0]
+            self._draw_overlay_text(frame, knife_label, (max(10, frame_w - knife_size[0] - 10), 115), (120, 120, 255), 0.58, 2)
 
         if self._gun_count > 0:
             gun_label = f"Guns: {self._gun_count}"
-            gun_size = cv2.getTextSize(gun_label, font, 0.55, 2)[0]
-            cv2.putText(frame, gun_label, (max(10, frame_w - gun_size[0] - 10), 140),
-                        font, 0.55, COLOR_GUN, 2, cv2.LINE_AA)
+            gun_size = cv2.getTextSize(gun_label, cv2.FONT_HERSHEY_DUPLEX, 0.58, 2)[0]
+            self._draw_overlay_text(frame, gun_label, (max(10, frame_w - gun_size[0] - 10), 140), (255, 180, 120), 0.58, 2)
 
         # Bottom status
         if has_explicit_state is None:
@@ -423,9 +437,15 @@ class WeaponDetectionService:
             is_enabled = has_explicit_state
 
         status_label = f"Knife: {'ON' if self._knife_enabled else 'OFF'} | Gun: {'ON' if self._gun_enabled else 'OFF'}"
-        status_size = cv2.getTextSize(status_label, font, 0.7, 2)[0]
+        status_size = cv2.getTextSize(status_label, cv2.FONT_HERSHEY_DUPLEX, 0.7, 2)[0]
         status_origin = (max(10, frame_w - status_size[0] - 10), max(25, frame_h - 17))
-        cv2.putText(frame, status_label, status_origin, font, 0.7,
-                    (0, 100, 255) if is_enabled else (128, 100, 0), 2, cv2.LINE_AA)
+        self._draw_overlay_text(
+            frame,
+            status_label,
+            status_origin,
+            (120, 255, 180) if is_enabled else (130, 160, 255),
+            0.7,
+            2,
+        )
 
         return frame

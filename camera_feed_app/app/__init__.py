@@ -1,7 +1,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask
+from flask import Flask, send_from_directory
 
 from camera_feed_app.config import Config
 
@@ -26,11 +26,16 @@ def create_app(config_class=Config) -> Flask:
 
     app.config["CAPTURES_DIR"].mkdir(parents=True, exist_ok=True)
     app.config["RECORDINGS_DIR"].mkdir(parents=True, exist_ok=True)
+    app.config["UPLOADS_DIR"].mkdir(parents=True, exist_ok=True)
 
     _configure_logging(app)
 
     from camera_feed_app.app.routes.camera_routes import camera_bp
 
     app.register_blueprint(camera_bp)
+
+    @app.get("/favicon.ico")
+    def favicon():
+        return send_from_directory(app.static_folder, "favicon.svg", mimetype="image/svg+xml")
 
     return app

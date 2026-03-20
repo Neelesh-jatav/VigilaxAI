@@ -4,17 +4,72 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VigilaxAI</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 </head>
 <body>
     <main class="container">
-        <h1>Drone Detection System</h1>
+        <div class="title-row">
+            <h1>Drone Detection System</h1>
+            <a
+                class="combat-link-btn"
+                href="https://combat-mern.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                ⚔️ Open Combat App
+            </a>
+        </div>
 
         <div class="app-layout">
-            <section class="panel feed feed-panel">
-                <img id="videoFeed" src="{{ url_for('camera.video_feed') }}" alt="Live camera feed" />
-            </section>
+            <div class="feed-column">
+                <section class="panel feed feed-panel">
+                    <img id="videoFeed" src="{{ url_for('camera.video_feed') }}" alt="Live camera feed" />
+                    <video id="uploadedVideo" style="display: none;" controls playsinline></video>
+                </section>
+
+                <section class="panel below-feed-panel">
+                    <div class="below-feed-grid">
+                        <div class="upload-panel">
+                            <div class="upload-panel-layout">
+                                <div class="upload-left">
+                                    <p><strong>Upload Image/Video Detection</strong></p>
+                                    <div id="mediaDropZone" class="drop-zone">
+                                        Drag and drop an image/video here, or choose a file below.
+                                    </div>
+                                    <input id="mediaFileInput" type="file" accept="image/*,video/*,.jpg,.jpeg,.png,.bmp,.webp,.mp4,.avi,.mov,.mkv,.mjpeg,.webm" />
+                                </div>
+                                <div class="upload-right">
+                                    <div class="upload-controls">
+                                        <button id="runUploadDetectionBtn" type="button">Run Detection</button>
+                                        <button id="useCameraFeedBtn" type="button" class="outline">Use Camera Feed</button>
+                                    </div>
+                                    <p id="uploadDetectionMessage" class="message">Upload an image/video to detect threats using the current AI toggles.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Demo Testing Section -->
+                        <div class="demo-panel">
+                            <div class="demo-panel-header">
+                                <h3>📷 Demo Testing</h3>
+                                <button id="loadDemoImagesBtn" type="button" class="primary-btn demo-header-btn">🔄 Load Images</button>
+                            </div>
+                            <p style="font-size: 12px; color: #999; margin: 8px 0 12px 0;">Select an image from the demo folder to run detection on it.</p>
+                            <div id="demoImagesContainer" class="demo-images-grid">
+                                <p style="text-align: center; color: #666; padding: 20px;">Click "Load Images" to browse demo images...</p>
+                            </div>
+                            <div class="demo-actions">
+                                <button id="runDemoDetectionBtn" type="button" class="primary-btn" disabled>▶ Run Detection On Selected Image</button>
+                                <button id="runDemoAudioBtn" type="button" class="primary-btn">🎙️ Analyze Demo Audio</button>
+                            </div>
+                            <p id="demoAudioInfo" style="font-size: 12px; color: #999; margin: 6px 0 0 0;">Demo audio: Flying Drone Sound Effect.mp3</p>
+                            <p id="demoMessage" class="message" style="margin-top: 8px; font-size: 12px;"></p>
+                        </div>
+                    </div>
+                </section>
+            </div>
 
             <section class="panel controls controls-panel">
                 <div class="control-group">
@@ -68,7 +123,6 @@
                     <button id="recordBtn">Start Recording</button>
                     <button id="archivesBtn">Archives</button>
                     <button id="mapBtn">Map</button>
-                    <button id="voiceBtn">Enable Voice System</button>
                     <button id="toggleFaceBtn">Enable Face Detection</button>
                     <button id="toggleDroneBtn">Enable Drone Detection</button>
                     <button id="toggleKnifeBtn">Enable Knife Detection</button>
@@ -76,11 +130,33 @@
                 </div>
 
                 <p id="message" class="message"></p>
-                <div class="voice-help-panel">
-                    <p><strong>Voice Commands:</strong></p>
-                    <p class="voice-help-list">
-                        start, stop, capture, start recording, stop recording, archives, map, close map, show route, refresh cameras, analyze audio, select camera &lt;number&gt;, enable/disable face, enable/disable drone, enable/disable knife, enable/disable gun, route from &lt;start&gt; to &lt;destination&gt;, voice help
-                    </p>
+
+                <div class="voice-help-panel compact-voice-panel">
+                    <div class="voice-help-header">
+                        <p class="voice-help-title">🎤 Voice Commands:</p>
+                        <button id="voiceBtn" type="button" class="voice-btn-header">Enable Voice System</button>
+                    </div>
+                    <div class="voice-help-list-container">
+                        <p class="voice-help-list">
+                            <span class="voice-cmd-category">Control:</span> start, stop, capture, start recording, stop recording<br>
+                            <span class="voice-cmd-category">Navigation:</span> archives, map, close map, show route, refresh cameras<br>
+                            <span class="voice-cmd-category">Detection:</span> enable/disable face, enable/disable drone, enable/disable knife, enable/disable gun<br>
+                            <span class="voice-cmd-category">Audio:</span> analyze audio<br>
+                            <span class="voice-cmd-category">Voice:</span> disable voice system, voice help<br>
+                            <span class="voice-cmd-category">Route:</span> route from &lt;start&gt; to &lt;destination&gt;
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Voice Active Indicator -->
+                <div id="voiceIndicatorPanel" class="voice-indicator-panel" style="display: none;">
+                    <div class="voice-indicator-header">
+                        <div class="voice-listening-pulse"></div>
+                        <span>🎤 Listening...</span>
+                    </div>
+                    <div id="voiceCommandDisplay" class="voice-command-display">
+                        <p style="margin: 0; font-size: 12px; color: #999;">Waiting for command...</p>
+                    </div>
                 </div>
             </section>
 
@@ -131,6 +207,8 @@
                     <button id="analyzeAudioBtn" type="button">📁 Analyze File</button>
                     <button id="audioArchivesBtn" type="button" class="primary-btn">📂 View Archives</button>
                 </div>
+                <!-- File Analysis Waveform Visualization -->
+                <canvas id="fileAnalysisCanvas" style="display: none; width: 100%; height: 150px; border: 1px solid #333; border-radius: 4px; margin: 8px 0; background: #0a0a0a;"></canvas>
                 <p id="audioResult" class="message" style="font-size: 12px;">Upload a file to detect drone sound signatures.</p>
             </section>
         </div>
@@ -174,6 +252,7 @@
         const weaponStatus = document.getElementById('weaponStatus');
         const knifeCount = document.getElementById('knifeCount');
         const gunCount = document.getElementById('gunCount');
+        const uploadedVideo = document.getElementById('uploadedVideo');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const captureBtn = document.getElementById('captureBtn');
@@ -204,6 +283,11 @@
         const audioArchivesList = document.getElementById('audioArchivesList');
         const archivesMessage = document.getElementById('archivesMessage');
         const autoSaveCheckbox = document.getElementById('autoSaveCheckbox');
+        const mediaDropZone = document.getElementById('mediaDropZone');
+        const mediaFileInput = document.getElementById('mediaFileInput');
+        const runUploadDetectionBtn = document.getElementById('runUploadDetectionBtn');
+        const useCameraFeedBtn = document.getElementById('useCameraFeedBtn');
+        const uploadDetectionMessage = document.getElementById('uploadDetectionMessage');
 
         let currentCameraIndex = null;
 
@@ -221,6 +305,103 @@
         let destinationMarker = null;
         let voiceRecognition = null;
         let voiceEnabled = false;
+        let selectedUploadFile = null;
+
+        function setButtonActiveState(button, isActive) {
+            if (!button) {
+                return;
+            }
+            button.classList.toggle('is-active', !!isActive);
+        }
+
+        function refreshControlButtonStates() {
+            const isRunning = statusText.textContent === 'Running';
+            setButtonActiveState(startBtn, isRunning);
+            setButtonActiveState(recordBtn, isRecording);
+            setButtonActiveState(toggleFaceBtn, faceEnabled);
+            setButtonActiveState(toggleDroneBtn, droneEnabled);
+            setButtonActiveState(toggleKnifeBtn, knifeEnabled);
+            setButtonActiveState(toggleGunBtn, gunEnabled && !toggleGunBtn.disabled);
+            setButtonActiveState(voiceBtn, voiceEnabled);
+            setButtonActiveState(liveDetectionBtn, liveDetectionActive);
+            setButtonActiveState(stopLiveDetectionBtn, liveDetectionActive);
+        }
+
+        function setUploadMessage(text, isError = false) {
+            uploadDetectionMessage.textContent = text;
+            uploadDetectionMessage.className = isError ? 'message error' : 'message';
+        }
+
+        function switchToCameraFeed() {
+            uploadedVideo.pause();
+            uploadedVideo.removeAttribute('src');
+            uploadedVideo.style.display = 'none';
+            videoFeed.style.display = 'block';
+            videoFeed.src = `/video_feed?t=${Date.now()}`;
+            setUploadMessage('Live camera feed selected.');
+        }
+
+        function showUploadedImage(url) {
+            uploadedVideo.pause();
+            uploadedVideo.removeAttribute('src');
+            uploadedVideo.style.display = 'none';
+            videoFeed.style.display = 'block';
+            videoFeed.src = `${url}?t=${Date.now()}`;
+        }
+
+        function showUploadedVideo(url) {
+            videoFeed.style.display = 'none';
+            uploadedVideo.src = `${url}?t=${Date.now()}`;
+            uploadedVideo.style.display = 'block';
+            uploadedVideo.load();
+        }
+
+        function setSelectedUploadFile(file) {
+            selectedUploadFile = file || null;
+            if (selectedUploadFile) {
+                setUploadMessage(`Selected: ${selectedUploadFile.name}`);
+            }
+        }
+
+        async function runUploadDetection(fileOverride = null) {
+            const file = fileOverride || selectedUploadFile || (mediaFileInput.files && mediaFileInput.files[0]);
+            if (!file) {
+                setUploadMessage('Please choose an image or video file first.', true);
+                return;
+            }
+
+            runUploadDetectionBtn.disabled = true;
+            setUploadMessage('Processing uploaded media with active detection toggles...');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/api/media/detect', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+
+                if (!response.ok || data.success === false) {
+                    throw new Error(data.message || 'Upload detection failed');
+                }
+
+                if (data.media_type === 'video') {
+                    showUploadedVideo(data.processed_url);
+                } else {
+                    showUploadedImage(data.processed_url);
+                }
+
+                setUploadMessage(data.message || 'Upload processed successfully');
+                setMessage('Upload detection completed');
+                await refreshAiStatus();
+            } catch (error) {
+                setUploadMessage(error.message || 'Upload detection failed', true);
+            } finally {
+                runUploadDetectionBtn.disabled = false;
+            }
+        }
 
         function setMessage(text, isError = false) {
             messageBox.textContent = text;
@@ -305,6 +486,8 @@
             if (!running) {
                 fpsValue.textContent = '0.00';
             }
+
+            refreshControlButtonStates();
         }
 
         async function api(path, method = 'GET', body) {
@@ -549,7 +732,7 @@
             }
 
             if (command === 'help' || command === 'voice help') {
-                setMessage('Voice commands: start, stop, capture, start recording, stop recording, archives, map, close map, show route, refresh cameras, analyze audio, select camera <number>, enable/disable face/drone/knife/gun, route from <start> to <destination>');
+                setMessage('Voice commands: start, stop, capture, start recording, stop recording, archives, map, close map, show route, refresh cameras, analyze audio, select camera <number>, enable/disable face/drone/knife/gun, disable voice system, route from <start> to <destination>');
                 return;
             }
 
@@ -594,6 +777,13 @@
                     setMessage('Gun detection is unavailable', true);
                     return;
                 }
+            } else if (command === 'disable voice system' || command === 'disable voice' || command === 'deactivate voice') {
+                if (voiceEnabled) {
+                    disableVoiceSystem();
+                } else {
+                    setMessage('Voice system is already disabled', true);
+                    return;
+                }
             } else if (command === 'status' || command === 'refresh status') {
                 await refreshStatus();
             } else {
@@ -609,6 +799,21 @@
         function updateVoiceButtonState() {
             voiceBtn.textContent = voiceEnabled ? 'Disable Voice System' : 'Enable Voice System';
             voiceBtn.classList.toggle('voice-active', voiceEnabled);
+            
+            // Show/hide voice indicator panel
+            const voiceIndicatorPanel = document.getElementById('voiceIndicatorPanel');
+            if (voiceIndicatorPanel) {
+                voiceIndicatorPanel.style.display = voiceEnabled ? 'block' : 'none';
+                if (voiceEnabled) {
+                    // Reset command display when voice is enabled
+                    const commandDisplay = document.getElementById('voiceCommandDisplay');
+                    if (commandDisplay) {
+                        commandDisplay.innerHTML = '<p style="margin: 0; font-size: 12px; color: #999;">Waiting for command...</p>';
+                    }
+                }
+            }
+            
+            refreshControlButtonStates();
         }
 
         function disableVoiceSystem(reasonMessage) {
@@ -617,6 +822,13 @@
                 voiceRecognition.onend = null;
                 voiceRecognition.stop();
             }
+            
+            // Hide voice indicator panel
+            const voiceIndicatorPanel = document.getElementById('voiceIndicatorPanel');
+            if (voiceIndicatorPanel) {
+                voiceIndicatorPanel.style.display = 'none';
+            }
+            
             updateVoiceButtonState();
             if (reasonMessage) {
                 setMessage(reasonMessage, true);
@@ -648,6 +860,16 @@
                     }
                     const transcript = (result[0]?.transcript || '').trim();
                     if (transcript) {
+                        // Update voice indicator panel with recognized command
+                        const commandDisplay = document.getElementById('voiceCommandDisplay');
+                        if (commandDisplay) {
+                            commandDisplay.innerHTML = `
+                                <p class="voice-command-text">🎤 Recognized Command:</p>
+                                <p class="voice-command-text" style="color: #fef2f2; margin: 6px 0;">"${transcript}"</p>
+                                <p class="voice-command-status">Processing command...</p>
+                            `;
+                        }
+                        
                         await executeVoiceCommand(transcript);
                     }
                 }
@@ -778,8 +1000,82 @@
                     } else {
                         aiWarning.style.display = 'none';
                     }
+
+                    refreshControlButtonStates();
                 }
             } catch (_) {}
+        }
+
+        // Function to visualize audio file waveform
+        async function visualizeFileWaveform(file) {
+            try {
+                if (!fileAnalysisAudioContext) {
+                    fileAnalysisAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                const arrayBuffer = await file.arrayBuffer();
+                fileAnalysisBuffer = await fileAnalysisAudioContext.decodeAudioData(arrayBuffer);
+
+                fileAnalysisCanvas.style.display = 'block';
+                fileCanvasCtx = fileAnalysisCanvas.getContext('2d');
+                fileAnalysisCanvas.width = fileAnalysisCanvas.offsetWidth * window.devicePixelRatio;
+                fileAnalysisCanvas.height = fileAnalysisCanvas.offsetHeight * window.devicePixelRatio;
+                fileCanvasCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+                const width = fileAnalysisCanvas.offsetWidth;
+                const height = fileAnalysisCanvas.offsetHeight;
+                const data = fileAnalysisBuffer.getChannelData(0);
+                const step = Math.ceil(data.length / width);
+                const amp = height / 2;
+
+                // Clear canvas
+                fileCanvasCtx.fillStyle = '#0a0a0a';
+                fileCanvasCtx.fillRect(0, 0, width, height);
+
+                // Draw waveform
+                fileCanvasCtx.lineWidth = 2;
+                fileCanvasCtx.strokeStyle = '#00ff00';
+                fileCanvasCtx.beginPath();
+
+                for (let i = 0; i < width; i++) {
+                    let min = 1.0;
+                    let max = -1.0;
+                    for (let j = 0; j < step; j++) {
+                        const datum = data[i * step + j];
+                        if (datum < min) min = datum;
+                        if (datum > max) max = datum;
+                    }
+                    const y = amp * (1.0 - max);
+                    if (i === 0) {
+                        fileCanvasCtx.moveTo(i, y);
+                    } else {
+                        fileCanvasCtx.lineTo(i, y);
+                    }
+                }
+                fileCanvasCtx.stroke();
+
+                // Draw center line
+                fileCanvasCtx.strokeStyle = 'rgba(0, 255, 0, 0.2)';
+                fileCanvasCtx.lineWidth = 1;
+                fileCanvasCtx.beginPath();
+                fileCanvasCtx.moveTo(0, amp);
+                fileCanvasCtx.lineTo(width, amp);
+                fileCanvasCtx.stroke();
+
+                // Draw frequency grid
+                fileCanvasCtx.strokeStyle = 'rgba(0, 255, 0, 0.1)';
+                fileCanvasCtx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const x = (width / 4) * i;
+                    fileCanvasCtx.beginPath();
+                    fileCanvasCtx.moveTo(x, 0);
+                    fileCanvasCtx.lineTo(x, height);
+                    fileCanvasCtx.stroke();
+                }
+            } catch (error) {
+                console.error('Error visualizing audio file:', error);
+                fileAnalysisCanvas.style.display = 'none';
+            }
         }
 
         async function analyzeAudioFile() {
@@ -789,31 +1085,10 @@
                 return;
             }
 
-            analyzeAudioBtn.disabled = true;
-            setAudioResult('Analyzing audio signature...');
-
             try {
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-
-                const response = await fetch('/api/audio_drone/predict', {
-                    method: 'POST',
-                    body: formData,
-                });
-                const data = await response.json();
-
-                if (!response.ok || data.success === false) {
-                    throw new Error(data.message || data.error || 'Audio analysis failed');
-                }
-
-                const confidencePct = Number(data.confidence || 0) * 100;
-                setAudioResult(`${data.prediction} (${confidencePct.toFixed(1)}% confidence)`);
-                audioDroneStatus.textContent = data.detected ? 'Detected' : 'Clear';
-                setMessage('Audio drone analysis complete');
-            } catch (error) {
-                setAudioResult(error.message || 'Audio analysis failed', true);
-            } finally {
-                analyzeAudioBtn.disabled = false;
+                await analyzeAudioFromFile(selectedFile, 'Uploaded audio');
+            } catch (_) {
+                // UI state already handled inside analyzeAudioFromFile
             }
         }
 
@@ -933,6 +1208,12 @@
 
         let canvasCtx = null;
         let animationId = null;
+
+        // File analysis audio context
+        let fileAnalysisAudioContext = null;
+        let fileAnalysisBuffer = null;
+        const fileAnalysisCanvas = document.getElementById('fileAnalysisCanvas');
+        let fileCanvasCtx = null;
 
         // Function to add timestamped log entry
         function addDetectionLog(message, isDetected = null) {
@@ -1065,6 +1346,7 @@
                 addDetectionLog('Live detection started - Monitoring audio stream');
 
                 setMessage('🎙️ Live drone sound detection active');
+                refreshControlButtonStates();
                 visualizeSpectrum();
                 startLiveAnalysis();
 
@@ -1115,6 +1397,7 @@
             intensityDisplay.textContent = '-';
 
             setMessage('Live detection stopped');
+            refreshControlButtonStates();
         }
 
         function visualizeSpectrum() {
@@ -1354,6 +1637,48 @@
 
         voiceBtn.addEventListener('click', toggleVoiceSystem);
         analyzeAudioBtn.addEventListener('click', analyzeAudioFile);
+        audioFileInput.addEventListener('change', async () => {
+            const selectedFile = audioFileInput.files && audioFileInput.files[0];
+            if (selectedFile) {
+                await visualizeFileWaveform(selectedFile);
+                setAudioResult('Ready to analyze - click "Analyze File" button');
+            }
+        });
+        mediaFileInput.addEventListener('change', () => {
+            const selectedFile = mediaFileInput.files && mediaFileInput.files[0];
+            if (selectedFile) {
+                setSelectedUploadFile(selectedFile);
+            }
+        });
+        runUploadDetectionBtn.addEventListener('click', () => {
+            runUploadDetection();
+        });
+        useCameraFeedBtn.addEventListener('click', switchToCameraFeed);
+
+        ['dragenter', 'dragover'].forEach((eventName) => {
+            mediaDropZone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                mediaDropZone.classList.add('is-dragover');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach((eventName) => {
+            mediaDropZone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                mediaDropZone.classList.remove('is-dragover');
+            });
+        });
+
+        mediaDropZone.addEventListener('drop', (event) => {
+            const droppedFiles = event.dataTransfer && event.dataTransfer.files;
+            if (!droppedFiles || droppedFiles.length === 0) {
+                return;
+            }
+            const droppedFile = droppedFiles[0];
+            setSelectedUploadFile(droppedFile);
+            runUploadDetection(droppedFile);
+        });
+
         audioArchivesBtn.addEventListener('click', openAudioArchives);
         closeAudioArchivesBtn.addEventListener('click', () => {
             audioArchivesPanel.style.display = 'none';
@@ -1494,6 +1819,201 @@
         loadCameras();
         refreshStatus();
         refreshFps();
+
+        // ===== DEMO TESTING SECTION =====
+        let demoImages = [];
+        let selectedDemoImage = null;
+        let demoAudio = null;
+
+        const loadDemoImagesBtn = document.getElementById('loadDemoImagesBtn');
+        const demoImagesContainer = document.getElementById('demoImagesContainer');
+        const demoMessage = document.getElementById('demoMessage');
+        const runDemoDetectionBtn = document.getElementById('runDemoDetectionBtn');
+        const runDemoAudioBtn = document.getElementById('runDemoAudioBtn');
+        const demoAudioInfo = document.getElementById('demoAudioInfo');
+
+        async function loadDemoImages() {
+            loadDemoImagesBtn.disabled = true;
+            loadDemoImagesBtn.textContent = '⏳ Loading...';
+            demoMessage.textContent = '';
+            demoMessage.className = 'message';
+
+            try {
+                const response = await fetch('/api/demo_images');
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Failed to load demo images');
+                }
+
+                demoImages = data.images;
+                selectedDemoImage = null;
+                displayDemoImages();
+                demoMessage.textContent = `Loaded ${demoImages.length} demo images`;
+                demoMessage.className = 'message';
+            } catch (error) {
+                demoMessage.textContent = error.message;
+                demoMessage.className = 'message error';
+                demoImagesContainer.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">❌ Failed to load demo images</p>';
+                selectedDemoImage = null;
+            } finally {
+                runDemoDetectionBtn.disabled = !selectedDemoImage;
+                loadDemoImagesBtn.disabled = false;
+                loadDemoImagesBtn.textContent = '🔄 Load Images';
+            }
+        }
+
+        function displayDemoImages() {
+            demoImagesContainer.innerHTML = '';
+
+            if (demoImages.length === 0) {
+                demoImagesContainer.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No demo images found</p>';
+                return;
+            }
+
+            demoImages.forEach((image) => {
+                const item = document.createElement('div');
+                item.className = 'demo-image-item';
+                item.title = image.name;
+                item.innerHTML = `
+                    <img src="${image.url}" alt="${image.name}" loading="lazy" />
+                    <div class="demo-image-name">${image.name}</div>
+                `;
+
+                item.addEventListener('click', () => {
+                    // Update selection
+                    document.querySelectorAll('.demo-image-item').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    item.classList.add('selected');
+                    selectedDemoImage = image;
+                    runDemoDetectionBtn.disabled = false;
+                    demoMessage.textContent = `Selected image: ${image.name}`;
+                    demoMessage.className = 'message';
+                });
+
+                demoImagesContainer.appendChild(item);
+            });
+
+            runDemoDetectionBtn.disabled = !selectedDemoImage;
+        }
+
+        async function runDemoDetection(image = selectedDemoImage) {
+            if (!image) {
+                demoMessage.textContent = 'Please select a demo image first.';
+                demoMessage.className = 'message error';
+                return;
+            }
+
+            try {
+                setUploadMessage(`Loading demo image: ${image.name}...`);
+                showUploadedImage(image.url);
+
+                // Create a blob from the image URL for detection
+                const response = await fetch(image.url);
+                const blob = await response.blob();
+
+                // Create File object from blob
+                const file = new File([blob], image.name, { type: blob.type });
+
+                // Run detection
+                await runUploadDetection(file);
+                demoMessage.textContent = `Detection completed for: ${image.name}`;
+                demoMessage.className = 'message';
+            } catch (error) {
+                setUploadMessage(`Failed to run detection on demo image: ${error.message}`, true);
+                demoMessage.textContent = `Detection failed for: ${image.name}`;
+                demoMessage.className = 'message error';
+            }
+        }
+
+        async function loadDemoAudio() {
+            try {
+                const response = await fetch('/api/demo_audio');
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Demo audio not available');
+                }
+
+                demoAudio = data.audio;
+                demoAudioInfo.textContent = `Demo audio: ${demoAudio.name}`;
+            } catch (error) {
+                demoAudio = null;
+                demoAudioInfo.textContent = `Demo audio unavailable: ${error.message}`;
+            }
+        }
+
+        async function analyzeAudioFromFile(file, sourceLabel) {
+            analyzeAudioBtn.disabled = true;
+            setAudioResult(`Analyzing ${sourceLabel}...`);
+
+            // Show visualization
+            await visualizeFileWaveform(file);
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/api/audio_drone/predict', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+
+                if (!response.ok || data.success === false) {
+                    throw new Error(data.message || data.error || 'Audio analysis failed');
+                }
+
+                const confidencePct = Number(data.confidence || 0) * 100;
+                setAudioResult(`${data.prediction} (${confidencePct.toFixed(1)}% confidence)`);
+                audioDroneStatus.textContent = data.detected ? 'Detected' : 'Clear';
+                setMessage(`${sourceLabel} analysis complete`);
+            } catch (error) {
+                setAudioResult(error.message || 'Audio analysis failed', true);
+                throw error;
+            } finally {
+                analyzeAudioBtn.disabled = false;
+            }
+        }
+
+        async function runDemoAudioDetection() {
+            runDemoAudioBtn.disabled = true;
+            runDemoAudioBtn.textContent = '⏳ Analyzing...';
+
+            try {
+                if (!demoAudio) {
+                    await loadDemoAudio();
+                }
+
+                if (!demoAudio || !demoAudio.url) {
+                    throw new Error('Demo audio file not found');
+                }
+
+                const response = await fetch(demoAudio.url);
+                if (!response.ok) {
+                    throw new Error('Unable to download demo audio');
+                }
+
+                const blob = await response.blob();
+                const audioFile = new File([blob], demoAudio.name, { type: blob.type || 'audio/mpeg' });
+                await analyzeAudioFromFile(audioFile, `Demo audio (${demoAudio.name})`);
+                demoMessage.textContent = `Demo audio analyzed: ${demoAudio.name}`;
+                demoMessage.className = 'message';
+            } catch (error) {
+                demoMessage.textContent = `Demo audio analysis failed: ${error.message}`;
+                demoMessage.className = 'message error';
+            } finally {
+                runDemoAudioBtn.disabled = false;
+                runDemoAudioBtn.textContent = '🎙️ Analyze Demo Audio';
+            }
+        }
+
+        loadDemoImagesBtn.addEventListener('click', loadDemoImages);
+        runDemoDetectionBtn.addEventListener('click', () => runDemoDetection());
+        runDemoAudioBtn.addEventListener('click', runDemoAudioDetection);
+        loadDemoImages();
+        loadDemoAudio();
         refreshAiStatus();
         setInterval(refreshFps, 1000);
         setInterval(refreshAiStatus, 1000);

@@ -179,29 +179,64 @@ class CameraManager:
 
         return self._current_fps
 
+    def _draw_overlay_text(
+        self,
+        frame,
+        text: str,
+        origin: Tuple[int, int],
+        text_color: Tuple[int, int, int],
+        font_scale: float = 0.7,
+        thickness: int = 2,
+    ) -> None:
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+        x, y = origin
+        x = max(8, x)
+        y = max(text_h + baseline + 8, y)
+
+        top_left = (x - 6, y - text_h - baseline - 6)
+        bottom_right = (x + text_w + 6, y + 6)
+
+        cv2.rectangle(frame, top_left, bottom_right, (0, 0, 0), -1)
+        cv2.rectangle(frame, top_left, bottom_right, (40, 40, 40), 1)
+        cv2.putText(frame, text, (x, y - 2), font, font_scale, text_color, thickness, cv2.LINE_AA)
+
     def _overlay_frame_metadata(self, frame, fps_value: float):
         camera_name = self._active_camera_name or "None"
         frame_h = frame.shape[0]
-        cv2.putText(
-            frame,
-            f"FPS: {fps_value:.2f}",
-            (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 255, 0),
-            2,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
+        self._draw_overlay_text(frame, f"FPS: {fps_value:.2f}", (12, 34), (90, 255, 120), 0.72, 2)
+        self._draw_overlay_text(
             frame,
             f"Camera: {camera_name}",
-            (10, max(25, frame_h - 12)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 255),
+            (12, max(28, frame_h - 14)),
+            (235, 245, 255),
+            0.68,
             2,
-            cv2.LINE_AA,
         )
+        return frame
+
+    def _apply_ai_pipeline(self, frame, force: bool = False):
+        with self._lock:
+            face_enabled = self.face_enabled
+            drone_enabled = self.drone_enabled
+            weapon_enabled = self.knife_enabled or self.gun_enabled
+
+        if face_enabled:
+            frame = self.face_detector.detect_faces(frame, force=force)
+        if drone_enabled:
+            frame = self.drone_detector.detect_drones(frame, force=force)
+        if weapon_enabled:
+            frame = self.weapon_detector.detect_weapons(frame, force=force)
+        return frame
+
+    def process_uploaded_frame(self, frame):
+        if frame is None:
+            return None
+
+        frame = self._enhance_low_light(frame)
+        frame = self._apply_ai_pipeline(frame, force=True)
+
+        self._draw_overlay_text(frame, "Source: Uploaded Media", (12, 34), (255, 240, 170), 0.72, 2)
         return frame
 
     def _reader_loop(self) -> None:
@@ -220,13 +255,7 @@ class CameraManager:
 
             frame = self._enhance_low_light(frame)
             
-            # AI Detection Pipeline - Independent toggles for performance control
-            if self.face_enabled:
-                frame = self.face_detector.detect_faces(frame)
-            if self.drone_enabled:
-                frame = self.drone_detector.detect_drones(frame)
-            if self.knife_enabled or self.gun_enabled:
-                frame = self.weapon_detector.detect_weapons(frame)
+            frame = self._apply_ai_pipeline(frame, force=False)
 
             with self._lock:
                 fps_value = self._update_fps()
@@ -398,13 +427,7 @@ class CameraManager:
                 return None
             frame = self._enhance_low_light(frame)
             
-            # AI Detection Pipeline - fallback path
-            if self.face_enabled:
-                frame = self.face_detector.detect_faces(frame)
-            if self.drone_enabled:
-                frame = self.drone_detector.detect_drones(frame)
-            if self.knife_enabled or self.gun_enabled:
-                frame = self.weapon_detector.detect_weapons(frame)
+            frame = self._apply_ai_pipeline(frame, force=False)
             
             fps_value = self._update_fps()
             frame = self._overlay_frame_metadata(frame, fps_value)
