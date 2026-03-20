@@ -61,7 +61,7 @@ class CameraManager:
             ),
             detection_interval=int(app_config.get("FACE_DETECTION_INTERVAL", 2)),
         )
-        self.face_detector.load_model()
+        self._face_model_loaded = False
         self.face_enabled = False
 
         raw_drone_class_ids = str(app_config.get("DRONE_CLASS_IDS", "4"))
@@ -84,7 +84,7 @@ class CameraManager:
             roboflow_model_id=app_config.get("ROBOFLOW_MODEL_ID", "drone-dataset-jiusn/1"),
             roboflow_size=int(app_config.get("ROBOFLOW_SIZE", 640)),
         )
-        self.drone_detector.load_model()
+        self._drone_model_loaded = False
         self.drone_enabled = False
 
         self.audio_drone_detector = AudioDroneDetectionService(
@@ -94,7 +94,7 @@ class CameraManager:
             duration_seconds=int(app_config.get("AUDIO_DRONE_DURATION_SECONDS", 3)),
             n_mels=int(app_config.get("AUDIO_DRONE_N_MELS", 128)),
         )
-        self.audio_drone_detector.load_model()
+        self._audio_model_loaded = False
 
         self.weapon_detector = WeaponDetectionService(
             base_model_path=app_config.get("WEAPON_BASE_MODEL", "yolov8n.pt"),
@@ -106,7 +106,11 @@ class CameraManager:
             gun_roboflow_model_id=app_config.get("WEAPON_GUN_ROBOFLOW_MODEL_ID", ""),
             gun_roboflow_size=int(app_config.get("WEAPON_GUN_ROBOFLOW_SIZE", 640)),
         )
-        self.weapon_detector.load_model()
+        self._weapon_model_loaded = False
+        gun_model_path = str(app_config.get("WEAPON_GUN_MODEL", "") or "").strip()
+        gun_rf_key = str(app_config.get("WEAPON_GUN_ROBOFLOW_API_KEY", "") or "").strip()
+        gun_rf_model = str(app_config.get("WEAPON_GUN_ROBOFLOW_MODEL_ID", "") or "").strip()
+        self._gun_configured = bool(gun_model_path) or bool(gun_rf_key and gun_rf_model)
         self.knife_enabled = False
         self.gun_enabled = False
 
@@ -121,6 +125,42 @@ class CameraManager:
             tileGridSize=(8, 8),
         )
         self._gamma_lut = self._build_gamma_lut(self._low_light_gamma)
+
+    def _ensure_face_model_loaded(self) -> bool:
+        if self._face_model_loaded:
+            return True
+        loaded = self.face_detector.load_model()
+        self._face_model_loaded = bool(loaded)
+        if not loaded:
+            logger.warning("Face detection model failed to load")
+        return loaded
+
+    def _ensure_drone_model_loaded(self) -> bool:
+        if self._drone_model_loaded:
+            return True
+        loaded = self.drone_detector.load_model()
+        self._drone_model_loaded = bool(loaded)
+        if not loaded:
+            logger.warning("Drone detection model failed to load")
+        return loaded
+
+    def _ensure_weapon_model_loaded(self) -> bool:
+        if self._weapon_model_loaded:
+            return True
+        loaded = self.weapon_detector.load_model()
+        self._weapon_model_loaded = bool(loaded)
+        if not loaded:
+            logger.warning("Weapon detection model failed to load")
+        return loaded
+
+    def _ensure_audio_model_loaded(self) -> bool:
+        if self._audio_model_loaded:
+            return self.audio_drone_detector.is_available()
+        loaded = self.audio_drone_detector.load_model()
+        self._audio_model_loaded = True
+        if not loaded:
+            logger.warning("Audio drone model failed to load")
+        return loaded
 
     def _build_gamma_lut(self, gamma_value: float):
         gamma_value = max(gamma_value, 0.1)
@@ -564,30 +604,46 @@ class CameraManager:
     def toggle_face_detection(self) -> bool:
         """Toggle face detection on/off."""
         with self._lock:
+            if not self._ensure_face_model_loaded():
+                self.face_enabled = False
+                return False
             self.face_enabled = self.face_detector.toggle_detection()
             return self.face_enabled
 
     def toggle_drone_detection(self) -> bool:
         """Toggle drone detection on/off."""
         with self._lock:
+            if not self._ensure_drone_model_loaded():
+                self.drone_enabled = False
+                return False
             self.drone_enabled = self.drone_detector.toggle_detection()
             return self.drone_enabled
 
     def toggle_knife_detection(self) -> bool:
         """Toggle knife detection on/off."""
         with self._lock:
+            if not self._ensure_weapon_model_loaded():
+                self.knife_enabled = False
+                return False
             self.knife_enabled = self.weapon_detector.toggle_knife_detection()
             return self.knife_enabled
 
     def toggle_gun_detection(self) -> bool:
         """Toggle gun detection on/off."""
         with self._lock:
+            if not self._ensure_weapon_model_loaded():
+                self.gun_enabled = False
+                return False
             self.gun_enabled = self.weapon_detector.toggle_gun_detection()
             return self.gun_enabled
 
     def toggle_weapon_detection(self) -> bool:
         """Backward-compatible combined toggle."""
         with self._lock:
+            if not self._ensure_weapon_model_loaded():
+                self.knife_enabled = False
+                self.gun_enabled = False
+                return False
             enabled = self.weapon_detector.toggle_detection()
             self.knife_enabled = enabled
             self.gun_enabled = enabled
@@ -613,12 +669,14 @@ class CameraManager:
         """Get weapon detection status."""
         with self._lock:
             counts = self.weapon_detector.get_weapon_counts()
+            gun_available = self.weapon_detector.is_gun_available() if self._weapon_model_loaded else self._gun_configured
+            gun_backend = self.weapon_detector.get_gun_backend() if self._weapon_model_loaded else ("configured" if self._gun_configured else "none")
             return {
                 "knife_enabled": self.knife_enabled,
                 "gun_enabled": self.gun_enabled,
                 "weapon_enabled": self.knife_enabled or self.gun_enabled,
-                "gun_available": self.weapon_detector.is_gun_available(),
-                "gun_backend": self.weapon_detector.get_gun_backend(),
+                "gun_available": gun_available,
+                "gun_backend": gun_backend,
                 "knives_detected": counts["knives_detected"],
                 "guns_detected": counts["guns_detected"],
                 "total_weapons": counts["total_weapons"],
@@ -626,6 +684,7 @@ class CameraManager:
 
     def analyze_audio_file(self, file_path: str) -> Dict[str, object]:
         with self._lock:
+            self._ensure_audio_model_loaded()
             return self.audio_drone_detector.detect_file(file_path)
 
     def get_audio_drone_status(self) -> Dict[str, object]:
@@ -650,14 +709,16 @@ class CameraManager:
             weapon_counts = self.weapon_detector.get_weapon_counts()
             audio_status = self.audio_drone_detector.get_status()
             active_count = sum([self.face_enabled, self.drone_enabled, self.knife_enabled, self.gun_enabled])
+            gun_available = self.weapon_detector.is_gun_available() if self._weapon_model_loaded else self._gun_configured
+            gun_backend = self.weapon_detector.get_gun_backend() if self._weapon_model_loaded else ("configured" if self._gun_configured else "none")
             return {
                 "face_enabled": self.face_enabled,
                 "drone_enabled": self.drone_enabled,
                 "knife_enabled": self.knife_enabled,
                 "gun_enabled": self.gun_enabled,
                 "weapon_enabled": self.knife_enabled or self.gun_enabled,
-                "gun_available": self.weapon_detector.is_gun_available(),
-                "gun_backend": self.weapon_detector.get_gun_backend(),
+                "gun_available": gun_available,
+                "gun_backend": gun_backend,
                 "faces_detected": self.face_detector.get_face_count(),
                 "drones_detected": self.drone_detector.get_drone_count(),
                 "knives_detected": weapon_counts["knives_detected"],
@@ -673,6 +734,8 @@ class CameraManager:
             weapon_counts = self.weapon_detector.get_weapon_counts()
             audio_status = self.audio_drone_detector.get_status()
             active_count = sum([self.face_enabled, self.drone_enabled, self.knife_enabled, self.gun_enabled])
+            gun_available = self.weapon_detector.is_gun_available() if self._weapon_model_loaded else self._gun_configured
+            gun_backend = self.weapon_detector.get_gun_backend() if self._weapon_model_loaded else ("configured" if self._gun_configured else "none")
             return {
                 "is_running": self._is_running,
                 "is_recording": self._is_recording,
@@ -684,8 +747,8 @@ class CameraManager:
                 "knife_enabled": self.knife_enabled,
                 "gun_enabled": self.gun_enabled,
                 "weapon_enabled": self.knife_enabled or self.gun_enabled,
-                "gun_available": self.weapon_detector.is_gun_available(),
-                "gun_backend": self.weapon_detector.get_gun_backend(),
+                "gun_available": gun_available,
+                "gun_backend": gun_backend,
                 "faces_detected": self.face_detector.get_face_count(),
                 "drones_detected": self.drone_detector.get_drone_count(),
                 "knives_detected": weapon_counts["knives_detected"],
